@@ -7,23 +7,36 @@ restart model. Built with Next.js 14 (App Router, TypeScript) + Supabase
 
 ## What was built
 
-**Screens (all protected, all client-rendered):**
-- `/` — Progress: live clean-eating counter (days + ticking hh:mm:ss), upcoming
+**Screens:**
+
+Public (no auth required):
+- `/` — Landing page: hero with a live ticking demo counter, "Start your day
+  1" (→ `/signup`) and "Peek inside the app" (→ `/demo`) CTAs, a "How it
+  works" section, the milestone philosophy, and a footer. Logged-in users are
+  redirected to `/app`.
+- `/demo` — Guest demo mode: a day-1 attempt starting at page load with a
+  live ticking counter, milestone 1 of 12 card, the 8 real protocol items
+  with working Committed/Held toggles (local state only, nothing saved),
+  sample weight card, live savings ticker, a working 20-minute craving
+  timer, and a persistent demo banner with a signup CTA. No Supabase calls.
+
+Protected (under `/app`, require auth; unauthenticated users redirect to `/login`):
+- `/app` — Progress: live clean-eating counter (days + ticking hh:mm:ss), upcoming
   milestone card directly under the counter (X of 12, progress bar,
   "in Xh Ym"), weight card (starting → editable current → weight plan link),
   stat cards (live savings ticker at $22.50/day over 16 waking hours,
   total clean days, craving waves ridden), a 20-minute "Ride out a wave"
   craving timer, and "Log a slip" (ends the current attempt, starts a new
   one; history is kept).
-- `/protocol` — Today's checklist grouped by pillar (Nutrition, Movement).
+- `/app/protocol` — Today's checklist grouped by pillar (Nutrition, Movement).
   Each item has the two-state model: **Committed** (standing choice, set once)
   and **Held** (daily adherence).
-- `/diary` — Meal 1 / Meal 2 free-text fields for today (no calorie counting),
+- `/app/diary` — Meal 1 / Meal 2 free-text fields for today (no calorie counting),
   slip history below.
-- `/weight` — Log-today input (lb), SVG weight-trend chart, phase targets
+- `/app/weight` — Log-today input (lb), SVG weight-trend chart, phase targets
   derived from starting weight (2–4% / 4–7% / 6–10% / 10–18% at 1/2/3/6 mo).
-- `/achievements` — Milestones achieved list from the 12-milestone journey.
-- `/login`, `/signup` — email/password auth.
+- `/app/achievements` — Milestones achieved list from the 12-milestone journey.
+- `/login`, `/signup` — email/password auth. After sign-in, users land on `/app`.
 
 **Also included:** Supabase SSR auth with middleware session refresh
 (unauthenticated users redirect to `/login`), PWA manifest + icons

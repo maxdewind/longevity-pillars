@@ -22,7 +22,7 @@ export default function LoginPage() {
       setError(error.message)
       setBusy(false)
     } else {
-      router.push('/')
+      router.push('/app')
       router.refresh()
     }
   }

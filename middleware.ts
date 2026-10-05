@@ -23,9 +23,11 @@ export async function middleware(request: NextRequest) {
   )
   const { data: { user } } = await supabase.auth.getUser()
   const path = request.nextUrl.pathname
-  const isAuthPage = path === '/login' || path === '/signup'
-  if (!user && !isAuthPage) return NextResponse.redirect(new URL('/login', request.url))
-  if (user && isAuthPage) return NextResponse.redirect(new URL('/', request.url))
+  const PUBLIC_PATHS = ['/', '/demo', '/login', '/signup']
+  const isPublic = PUBLIC_PATHS.includes(path)
+  if (!user && !isPublic) return NextResponse.redirect(new URL('/login', request.url))
+  if (user && path === '/') return NextResponse.redirect(new URL('/app', request.url))
+  if (user && (path === '/login' || path === '/signup')) return NextResponse.redirect(new URL('/app', request.url))
   return response
 }
 export const config = { matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest.json|icon.svg|apple-touch-icon.png|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'] }

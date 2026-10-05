@@ -5,16 +5,20 @@ import Link from 'next/link'
 import SignOutButton from './SignOutButton'
 
 const NAV = [
-  { href: '/', label: 'Progress' },
-  { href: '/protocol', label: 'Protocol' },
-  { href: '/diary', label: 'Diary' },
-  { href: '/weight', label: 'Weight' },
-  { href: '/achievements', label: 'More' },
+  { href: '/app', label: 'Progress' },
+  { href: '/app/protocol', label: 'Protocol' },
+  { href: '/app/diary', label: 'Diary' },
+  { href: '/app/weight', label: 'Weight' },
+  { href: '/app/achievements', label: 'More' },
 ]
 
 export default function SiteChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const hidden = pathname === '/login' || pathname === '/signup'
+  const hidden =
+    pathname === '/login' ||
+    pathname === '/signup' ||
+    pathname === '/' ||
+    pathname === '/demo'
 
   if (hidden) {
     return <main className="max-w-md mx-auto px-4 pt-4 pb-28">{children}</main>
