@@ -3,12 +3,21 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { MILESTONES } from '@/lib/milestones'
-import type { Attempt } from '@/lib/types'
+import type { Attempt, Protocol } from '@/lib/types'
+
+const RECORD_MILESTONES = [7, 30, 100]
+
+interface RoutineRecord {
+  id: string
+  label: string
+  holds: number
+}
 
 export default function AchievementsPage() {
   const [loading, setLoading] = useState(true)
   const [attempt, setAttempt] = useState<Attempt | null>(null)
   const [now, setNow] = useState(() => new Date())
+  const [records, setRecords] = useState<RoutineRecord[]>([])
 
   useEffect(() => {
     const tick = setInterval(() => setNow(new Date()), 1000)
@@ -32,6 +41,31 @@ export default function AchievementsPage() {
         .order('started_at', { ascending: false })
         .limit(1)
       setAttempt((data?.[0] ?? null) as Attempt | null)
+
+      const [{ data: protos }, { data: checkRows }] = await Promise.all([
+        supabase
+          .from('protocols')
+          .select('id,label,position')
+          .eq('user_id', uid)
+          .eq('enabled', true)
+          .order('position', { ascending: true }),
+        supabase
+          .from('protocol_checks')
+          .select('protocol_id,held')
+          .eq('user_id', uid)
+          .eq('held', true),
+      ])
+      const holdsByProto: Record<string, number> = {}
+      ;(checkRows ?? []).forEach((r) => {
+        holdsByProto[r.protocol_id] = (holdsByProto[r.protocol_id] ?? 0) + 1
+      })
+      setRecords(
+        ((protos as Protocol[] | null) ?? []).map((p) => ({
+          id: p.id,
+          label: p.label,
+          holds: holdsByProto[p.id] ?? 0,
+        }))
+      )
       setLoading(false)
     }
     init()
@@ -92,6 +126,54 @@ export default function AchievementsPage() {
       <p className="text-[#9aa0ae] text-xs mt-6 text-center">
         Milestones 2-12 are proposed timings. The journey is the point.
       </p>
+
+      {records.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-xl font-bold mb-1">Routine records</h2>
+          <p className="text-sm mb-4" style={{ color: '#9aa0ae' }}>
+            Hold counts no slip can take away.
+          </p>
+          <div className="space-y-3">
+            {records.map((r) => {
+              const next = RECORD_MILESTONES.find((m) => r.holds < m) ?? null
+              return (
+                <div key={r.id} className="card">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="font-semibold">{r.label}</p>
+                    <p className="text-sm tabular-nums whitespace-nowrap" style={{ color: '#9aa0ae' }}>
+                      {r.holds} {r.holds === 1 ? 'hold' : 'holds'}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 mt-2 text-xs">
+                    {RECORD_MILESTONES.map((m) => (
+                      <span
+                        key={m}
+                        className={`px-2 py-1 rounded-full border ${
+                          r.holds >= m
+                            ? 'text-accent border-accent/40'
+                            : 'text-muted border-white/10'
+                        }`}
+                      >
+                        {r.holds >= m ? `✓ ${m}` : `${m}`}
+                      </span>
+                    ))}
+                  </div>
+                  {next && (
+                    <p className="text-xs mt-2" style={{ color: '#9aa0ae' }}>
+                      Next record at {next} holds.
+                    </p>
+                  )}
+                  {!next && (
+                    <p className="text-xs mt-2 text-accent">
+                      All records set. The bar is yours to raise.
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
     </main>
   )
 }

@@ -36,7 +36,11 @@ Protected (under `/app`, require auth; unauthenticated users redirect to `/login
   slip history below.
 - `/app/weight` — Log-today input (lb), SVG weight-trend chart, phase targets
   derived from starting weight (2–4% / 4–7% / 6–10% / 10–18% at 1/2/3/6 mo).
-- `/app/achievements` — Milestones achieved list from the 12-milestone journey.
+- `/app/achievements` — Milestones achieved list from the 12-milestone journey,
+  plus "Routine records": per-protocol hold-count milestones at 7, 30, 100.
+- `/app/record` — Track record: lifetime committed/held totals, per-routine
+  breakdown with hold rate, and a 12-week heatmap of held days. Framed as a
+  body of evidence that grows and can never reset to zero.
 - `/login`, `/signup` — email/password auth. After sign-in, users land on `/app`.
 
 **Also included:** Supabase SSR auth with middleware session refresh
