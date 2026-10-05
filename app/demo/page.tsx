@@ -181,8 +181,8 @@ export default function DemoPage() {
         <section className="space-y-3">
           <h2 className="text-base font-bold">Today&apos;s protocol</h2>
           <p className="text-sm" style={{ color: '#9aa0ae' }}>
-            Committed is your standing choice. Held is what you mark each day.
-            Try the toggles. They only live in this demo.
+            Committed is the promise you make each morning. Held is what you
+            record each night. Try the toggles. They only live in this demo.
           </p>
           <h3 className="text-sm font-bold text-[#9aa0ae] uppercase tracking-wide">Nutrition</h3>
           {nutrition.map(renderItem)}

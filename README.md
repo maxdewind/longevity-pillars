@@ -29,8 +29,9 @@ Protected (under `/app`, require auth; unauthenticated users redirect to `/login
   craving timer, and "Log a slip" (ends the current attempt, starts a new
   one; history is kept).
 - `/app/protocol` — Today's checklist grouped by pillar (Nutrition, Movement).
-  Each item has the two-state model: **Committed** (standing choice, set once)
-  and **Held** (daily adherence).
+  Each item has two daily toggles, both starting unchecked every morning:
+  **Committed** (the promise you re-affirm each morning) and **Held** (what you
+  record each night). Both are stored per day in `protocol_checks`.
 - `/app/diary` — Meal 1 / Meal 2 free-text fields for today (no calorie counting),
   slip history below.
 - `/app/weight` — Log-today input (lb), SVG weight-trend chart, phase targets
