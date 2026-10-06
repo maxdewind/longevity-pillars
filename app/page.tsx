@@ -50,6 +50,18 @@ export default function LandingPage() {
           from day one, a 12-milestone journey, and restarts that cost you a day
           instead of your identity.
         </p>
+        <p className="text-sm text-[#9aa0ae] leading-relaxed">
+          Step one: quit ultra-processed food. This is{' '}
+          <a
+            href="https://x.com/HealthLadderX/status/2107293774506234247"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-slate-200"
+          >
+            Rung 1 of the Health Ladder
+          </a>
+          .
+        </p>
         <LandingCounter />
         <div className="space-y-3 pt-1">
           <Link href="/signup" className="btn-primary w-full block text-center">

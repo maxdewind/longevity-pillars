@@ -85,7 +85,9 @@ export default async function RecordPage() {
     <main className="max-w-md mx-auto px-4 py-6 space-y-4">
       <h1 className="text-2xl font-bold">Track record</h1>
       <p className="text-sm" style={{ color: '#9aa0ae' }}>
-        Your body of evidence. Streaks reset to zero. This doesn&apos;t.
+        Your body of evidence. Streaks reset to zero. This doesn&apos;t. This
+        is your Rung 1 record: ninety days of Held evenings is how you
+        graduate.
       </p>
 
       {rows.length === 0 ? (

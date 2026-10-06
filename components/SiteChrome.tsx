@@ -32,6 +32,18 @@ export default function SiteChrome({ children }: { children: React.ReactNode }) 
           <span className="font-semibold tracking-tight">Longevity Pillars</span>
           <SignOutButton />
         </div>
+        <div className="border-t border-white/5">
+          <div className="max-w-md mx-auto px-4 py-1 text-center">
+            <a
+              href="https://x.com/HealthLadderX/status/2107293774506234247"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] text-[#9aa0ae] hover:text-slate-200"
+            >
+              Health Ladder · Rung 1 - Protocol
+            </a>
+          </div>
+        </div>
       </header>
 
       <main className="max-w-md mx-auto px-4 pt-4 pb-28">{children}</main>
