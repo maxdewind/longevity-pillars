@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import type { Protocol, ProtocolCheck } from '@/lib/types'
+import ResolutionCard from '@/components/ResolutionCard'
 
 const WEEKS = 12
 
@@ -89,6 +90,8 @@ export default async function RecordPage() {
         is your Rung 1 record: ninety days of Held evenings is how you
         graduate.
       </p>
+
+      <ResolutionCard />
 
       {rows.length === 0 ? (
         <div className="card">
