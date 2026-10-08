@@ -13,6 +13,13 @@ export default function DiaryPage() {
   const [meal2, setMeal2] = useState('')
   const [slips, setSlips] = useState<SlipLog[]>([])
   const [saved, setSaved] = useState(false)
+  const [summary, setSummary] = useState<null | {
+    daysSinceSlip: number | null
+    mandatoryCount: number
+    heldTotal: number
+    weakestLabel: string
+    weakestPct: number
+  }>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -37,7 +44,47 @@ export default function DiaryPage() {
         .eq('user_id', user.id)
         .order('occurred_at', { ascending: false })
 
-      setSlips((slipRows as SlipLog[] | null) ?? [])
+      const slipList = (slipRows as SlipLog[] | null) ?? []
+      setSlips(slipList)
+
+      // Progress summary over mandatory routines only: days since last slip
+      // (resets), held evidence (survives), weakest routine's % of the 90-day
+      // target (worst axis blocks the climb).
+      const [{ data: protos }, { data: checkRows }] = await Promise.all([
+        supabase.from('protocols').select('id,label,is_mandatory').eq('user_id', user.id),
+        supabase.from('protocol_checks').select('protocol_id,held').eq('user_id', user.id),
+      ])
+      const mandatory = (
+        (protos as { id: string; label: string; is_mandatory: boolean }[] | null) ?? []
+      ).filter((p) => p.is_mandatory)
+      const mrows = (
+        (checkRows as { protocol_id: string; held: boolean }[] | null) ?? []
+      ).filter((c) => mandatory.some((m) => m.id === c.protocol_id))
+      const heldTotal = mrows.filter((c) => c.held).length
+      let weakestLabel = ''
+      let weakestPct = 0
+      mandatory.forEach((m) => {
+        const held = mrows.filter((c) => c.protocol_id === m.id && c.held).length
+        const pct = Math.round((held / 90) * 100)
+        if (weakestLabel === '' || pct < weakestPct) {
+          weakestLabel = m.label
+          weakestPct = pct
+        }
+      })
+      const lastSlipDay = slipList[0]?.occurred_at?.slice(0, 10)
+      // Calendar-day difference on YYYY-MM-DD strings, parsed as UTC on both
+      // sides so a same-day slip reads 0, never -1 (date-only strings parse
+      // as UTC midnight; mixing that with a local-noon Date broke this).
+      const daysBetweenISO = (a: string, b: string): number =>
+        Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000)
+      const daysSinceSlip = lastSlipDay ? daysBetweenISO(lastSlipDay, todayISO()) : null
+      setSummary({
+        daysSinceSlip,
+        mandatoryCount: mandatory.length,
+        heldTotal,
+        weakestLabel,
+        weakestPct,
+      })
     }
     load()
   }, [])
@@ -91,6 +138,32 @@ export default function DiaryPage() {
 
       <section className="space-y-3">
         <h2 className="text-xl font-bold">Slip history</h2>
+        {summary && (
+          <div className="card">
+            {summary.daysSinceSlip === null ? (
+              <p className="text-sm font-bold">No slips logged yet.</p>
+            ) : (
+              <p className="text-sm font-bold">
+                {summary.daysSinceSlip} {summary.daysSinceSlip === 1 ? 'day' : 'days'} since last slip
+              </p>
+            )}
+            {summary.mandatoryCount === 0 ? (
+              <p className="text-sm mt-1" style={{ color: '#9aa0ae' }}>
+                Mark routines as mandatory on the Protocol page to track your 90-day target.
+              </p>
+            ) : (
+              <>
+                <p className="text-sm mt-1 tabular-nums" style={{ color: '#9aa0ae' }}>
+                  {summary.heldTotal} held across {summary.mandatoryCount} mandatory{' '}
+                  {summary.mandatoryCount === 1 ? 'routine' : 'routines'}
+                </p>
+                <p className="text-sm tabular-nums" style={{ color: '#9aa0ae' }}>
+                  Weakest: {summary.weakestLabel} at {summary.weakestPct}% of 90
+                </p>
+              </>
+            )}
+          </div>
+        )}
         {slips.length === 0 ? (
           <p className="text-sm" style={{ color: '#9aa0ae' }}>
             No slips logged. The diary keeps the story either way.
