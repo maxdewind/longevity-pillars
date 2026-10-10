@@ -132,20 +132,7 @@ export default function ProtocolPage() {
     )
   }
 
-  const toggleMandatory = async (p: Protocol) => {
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const next = !p.is_mandatory
-    const nextSince = next ? todayISO() : null
-    setProtocols((ps) =>
-      ps.map((x) => (x.id === p.id ? { ...x, is_mandatory: next, mandatory_since: nextSince } : x))
-    )
-    await supabase
-      .from('protocols')
-      .update({ is_mandatory: next, mandatory_since: nextSince })
-      .eq('id', p.id)
-  }
+  // (toggleCardCommitted / toggleCardMandatory above handle the grouped card.)
 
   // A "miss" is a past day whose check row was left unheld, or a past day with
   // no check row at all once the routine became mandatory (mandatory means
@@ -188,14 +175,104 @@ export default function ProtocolPage() {
     })
 
   const dateLabel = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  const nutrition = protocols.filter((p) => p.pillar === 'nutrition')
-  const movement = protocols.filter((p) => p.pillar === 'movement')
 
-  const renderItem = (p: Protocol) => {
-    const state = checks[p.id] ?? UNCHECKED
-    const count = counts[p.id]
-    const missedYesterday = p.is_mandatory && missedOn(p, 1)
-    const isWeekly = p.cadence === 'weekly'
+  // Rows that share a card_group render as ONE card (e.g. the two meal rows).
+  // Committed is per card (one tap commits every row); Held stays per row.
+  interface Card {
+    key: string
+    title: string
+    detail: string
+    rows: Protocol[]
+  }
+
+  const toCards = (ps: Protocol[]): Card[] => {
+    const cards: Card[] = []
+    ps.forEach((p) => {
+      if (p.card_group) {
+        const existing = cards.find((c) => c.key === p.card_group)
+        if (existing) {
+          existing.rows.push(p)
+          existing.rows.sort((a, b) => a.label.localeCompare(b.label))
+          return
+        }
+        cards.push({
+          key: p.card_group as string,
+          title: p.label.replace(/ \(Meal \d\)$/, ''),
+          detail: p.detail,
+          rows: [p],
+        })
+        return
+      }
+      cards.push({ key: p.id, title: p.label, detail: p.detail, rows: [p] })
+    })
+    return cards
+  }
+
+  const nutrition = toCards(protocols.filter((p) => p.pillar === 'nutrition'))
+  const movement = toCards(protocols.filter((p) => p.pillar === 'movement'))
+
+  const toggleCardCommitted = async (card: Card) => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const next = !card.rows.every((r) => (checks[r.id] ?? UNCHECKED).committed)
+    const nextChecks = { ...checks }
+    card.rows.forEach((r) => {
+      const current = nextChecks[r.id] ?? UNCHECKED
+      nextChecks[r.id] = { ...current, committed: next }
+    })
+    setChecks(nextChecks)
+    await Promise.all(
+      card.rows.map((r) => {
+        const s = nextChecks[r.id]
+        return supabase.from('protocol_checks').upsert(
+          {
+            user_id: user.id,
+            protocol_id: r.id,
+            log_date: todayISO(),
+            committed: s.committed,
+            held: s.held,
+          },
+          { onConflict: 'user_id,protocol_id,log_date' }
+        )
+      })
+    )
+  }
+
+  const toggleCardMandatory = async (card: Card) => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const next = !card.rows[0].is_mandatory
+    const nextSince = next ? todayISO() : null
+    const ids = new Set(card.rows.map((r) => r.id))
+    setProtocols((ps) =>
+      ps.map((x) => (ids.has(x.id) ? { ...x, is_mandatory: next, mandatory_since: nextSince } : x))
+    )
+    await Promise.all(
+      card.rows.map((r) =>
+        supabase
+          .from('protocols')
+          .update({ is_mandatory: next, mandatory_since: nextSince })
+          .eq('id', r.id)
+      )
+    )
+  }
+
+  const shortHalfName = (label: string): string => {
+    const m = label.match(/ \((Meal \d)\)$/)
+    return m ? m[1] : label
+  }
+
+  const renderCard = (card: Card) => {
+    const rows = card.rows
+    const split = rows.length > 1
+    const committedOn = rows.every((r) => (checks[r.id] ?? UNCHECKED).committed)
+    const mandatory = rows[0].is_mandatory
+    const experimental = rows.some((r) => r.is_experimental)
+    const missedYesterday = rows.some((r) => r.is_mandatory && missedOn(r, 1))
+    const weeklyRow = rows.length === 1 ? rows[0] : null
+    const isWeekly = !!weeklyRow && weeklyRow.cadence === 'weekly'
     // Sessions held since Monday (weekly routines aggregate Mon-Sun).
     const monday = (() => {
       const d = new Date()
@@ -203,54 +280,94 @@ export default function ProtocolPage() {
       d.setDate(d.getDate() - dow)
       return todayISO(d)
     })()
-    const weeklySessions = isWeekly
-      ? history.filter((h) => h.protocol_id === p.id && h.held && h.log_date >= monday).length
-      : 0
+    const weeklySessions =
+      isWeekly && weeklyRow
+        ? history.filter((h) => h.protocol_id === weeklyRow.id && h.held && h.log_date >= monday).length
+        : 0
     return (
-      <div key={p.id} className="card">
+      <div key={card.key} className="card">
         <div className="font-bold">
-          {p.label}
-          {p.is_experimental && (
+          {card.title}
+          {experimental && (
             <span className="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style={{ background: '#2a2d36', color: '#9aa0ae' }}>
               Experimental
             </span>
           )}
         </div>
-        <p className="text-sm mt-1" style={{ color: '#9aa0ae' }}>{p.detail}</p>
+        <p className="text-sm mt-1" style={{ color: '#9aa0ae' }}>{card.detail}</p>
         <button
           type="button"
-          onClick={() => toggleMandatory(p)}
+          onClick={() => toggleCardMandatory(card)}
           className="text-xs mt-2 underline"
           style={{ color: '#9aa0ae' }}
         >
-          {p.is_mandatory ? 'Mandatory · tap to unmark' : 'Not mandatory · tap to make mandatory'}
+          {mandatory ? 'Mandatory · tap to unmark' : 'Not mandatory · tap to make mandatory'}
         </button>
-        <div className="grid grid-cols-2 gap-2 mt-3">
-          <button
-            type="button"
-            onClick={() => toggle(p, 'committed')}
-            className={state.committed ? 'btn-primary' : 'btn-ghost'}
-          >
-            Committed
-          </button>
-          <button
-            type="button"
-            onClick={() => toggle(p, 'held')}
-            className={state.held ? 'btn-primary' : 'btn-ghost'}
-          >
-            Held
-          </button>
-        </div>
+        {split ? (
+          <div className="grid grid-cols-4 gap-2 mt-3">
+            <button
+              type="button"
+              onClick={() => toggleCardCommitted(card)}
+              className={`${committedOn ? 'btn-primary' : 'btn-ghost'} col-span-2`}
+            >
+              Committed
+            </button>
+            {rows.map((r) => {
+              const s = checks[r.id] ?? UNCHECKED
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => toggle(r, 'held')}
+                  className={s.held ? 'btn-primary' : 'btn-ghost'}
+                >
+                  {shortHalfName(r.label)}
+                </button>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 mt-3">
+            <button
+              type="button"
+              onClick={() => toggleCardCommitted(card)}
+              className={committedOn ? 'btn-primary' : 'btn-ghost'}
+            >
+              Committed
+            </button>
+            <button
+              type="button"
+              onClick={() => toggle(rows[0], 'held')}
+              className={(checks[rows[0].id] ?? UNCHECKED).held ? 'btn-primary' : 'btn-ghost'}
+            >
+              Held
+            </button>
+          </div>
+        )}
         {isWeekly ? (
           <p className="text-xs tabular-nums mt-2 font-medium" style={{ color: '#c9ccd4' }}>
             {weeklySessions} of {WEEKLY_TARGET} sessions this week (Mon-Sun)
           </p>
+        ) : split ? (
+          <p className="text-xs tabular-nums mt-2" style={{ color: '#9aa0ae' }}>
+            {rows.map((r) => {
+              const c = counts[r.id]
+              return `${shortHalfName(r.label)} held ${c ? `${c.held}/${c.days}` : '–'}`
+            }).join(' · ')}
+            {' · '}Committed {(() => {
+              const c0 = counts[rows[0].id]
+              return c0 ? `${c0.committed}/${c0.days}` : '–'
+            })()} mornings
+          </p>
         ) : (
-          count && (
-            <p className="text-xs tabular-nums mt-2" style={{ color: '#9aa0ae' }}>
-              Held {count.held}/{count.days} days · Committed {count.committed}/{count.days} mornings
-            </p>
-          )
+          (() => {
+            const c = counts[rows[0].id]
+            return c ? (
+              <p className="text-xs tabular-nums mt-2" style={{ color: '#9aa0ae' }}>
+                Held {c.held}/{c.days} days · Committed {c.committed}/{c.days} mornings
+              </p>
+            ) : null
+          })()
         )}
         {missedYesterday && (
           <p className="text-xs mt-2 font-medium" style={{ color: '#c9ccd4' }}>
@@ -285,14 +402,14 @@ export default function ProtocolPage() {
       {!loading && nutrition.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-base font-bold">Nutrition</h2>
-          {nutrition.map(renderItem)}
+          {nutrition.map(renderCard)}
         </section>
       )}
 
       {!loading && movement.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-base font-bold">Movement</h2>
-          {movement.map(renderItem)}
+          {movement.map(renderCard)}
         </section>
       )}
     </main>
