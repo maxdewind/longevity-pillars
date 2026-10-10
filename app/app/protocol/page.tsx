@@ -24,6 +24,7 @@ interface HistoryRow {
 
 const UNCHECKED: CheckState = { committed: false, held: false }
 const TRAILING_DAYS = 14
+const WEEKLY_TARGET = 3
 
 function daysBetween(a: string, b: string): number {
   return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000)
@@ -149,8 +150,10 @@ export default function ProtocolPage() {
   // A "miss" is a past day whose check row was left unheld, or a past day with
   // no check row at all once the routine became mandatory (mandatory means
   // daily, so an unlogged day cannot count as held). Days before the routine
-  // became mandatory are unknown, not misses.
+  // became mandatory are unknown, not misses. Weekly-cadence routines are
+  // scored per week, never per day, so they can never miss a single day.
   const missedOn = (p: Protocol, daysAgo: number): boolean => {
+    if (p.cadence === 'weekly') return false
     const date = dayISO(daysAgo)
     const row = history.find((h) => h.protocol_id === p.id && h.log_date === date)
     if (row) return !row.held
@@ -192,9 +195,27 @@ export default function ProtocolPage() {
     const state = checks[p.id] ?? UNCHECKED
     const count = counts[p.id]
     const missedYesterday = p.is_mandatory && missedOn(p, 1)
+    const isWeekly = p.cadence === 'weekly'
+    // Sessions held since Monday (weekly routines aggregate Mon-Sun).
+    const monday = (() => {
+      const d = new Date()
+      const dow = (d.getDay() + 6) % 7 // 0 = Monday
+      d.setDate(d.getDate() - dow)
+      return todayISO(d)
+    })()
+    const weeklySessions = isWeekly
+      ? history.filter((h) => h.protocol_id === p.id && h.held && h.log_date >= monday).length
+      : 0
     return (
       <div key={p.id} className="card">
-        <div className="font-bold">{p.label}</div>
+        <div className="font-bold">
+          {p.label}
+          {p.is_experimental && (
+            <span className="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style={{ background: '#2a2d36', color: '#9aa0ae' }}>
+              Experimental
+            </span>
+          )}
+        </div>
         <p className="text-sm mt-1" style={{ color: '#9aa0ae' }}>{p.detail}</p>
         <button
           type="button"
@@ -202,7 +223,7 @@ export default function ProtocolPage() {
           className="text-xs mt-2 underline"
           style={{ color: '#9aa0ae' }}
         >
-          {p.is_mandatory ? 'Mandatory · tap to make optional' : 'Optional · tap to make mandatory'}
+          {p.is_mandatory ? 'Mandatory · tap to unmark' : 'Not mandatory · tap to make mandatory'}
         </button>
         <div className="grid grid-cols-2 gap-2 mt-3">
           <button
@@ -220,10 +241,16 @@ export default function ProtocolPage() {
             Held
           </button>
         </div>
-        {count && (
-          <p className="text-xs tabular-nums mt-2" style={{ color: '#9aa0ae' }}>
-            Held {count.held}/{count.days} days · Committed {count.committed}/{count.days} mornings
+        {isWeekly ? (
+          <p className="text-xs tabular-nums mt-2 font-medium" style={{ color: '#c9ccd4' }}>
+            {weeklySessions} of {WEEKLY_TARGET} sessions this week (Mon-Sun)
           </p>
+        ) : (
+          count && (
+            <p className="text-xs tabular-nums mt-2" style={{ color: '#9aa0ae' }}>
+              Held {count.held}/{count.days} days · Committed {count.committed}/{count.days} mornings
+            </p>
+          )
         )}
         {missedYesterday && (
           <p className="text-xs mt-2 font-medium" style={{ color: '#c9ccd4' }}>

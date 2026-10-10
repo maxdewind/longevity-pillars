@@ -18,14 +18,15 @@ interface DemoProtocol {
 }
 
 const DEMO_PROTOCOLS: DemoProtocol[] = [
-  { id: 'n1', pillar: 'nutrition', label: 'Keep the 11:30\u201319:30 eating window', detail: 'Finish eating by 7:30 PM; first meal at or after 11:30 AM.' },
-  { id: 'n2', pillar: 'nutrition', label: 'Eat 2 meals, each within 30 minutes', detail: 'Two clear meals instead of all-day grazing.' },
-  { id: 'n3', pillar: 'nutrition', label: 'No added sugar', detail: 'Keep today free of foods with added sugar.' },
-  { id: 'n4', pillar: 'nutrition', label: 'No white rice or white flour', detail: 'Choose foods outside the refined white-rice and white-flour pattern.' },
-  { id: 'n5', pillar: 'nutrition', label: 'Stay gluten-free', detail: 'Keep both meals gluten-free.' },
-  { id: 'm1', pillar: 'movement', label: 'Walk 8,000+ steps', detail: 'Low-intensity base. Every step counts. Low impact by default.' },
-  { id: 'm2', pillar: 'movement', label: 'Gym workout (weightlifting)', detail: 'A strength session. Any split, any duration that counts.' },
-  { id: 'm3', pillar: 'movement', label: 'Micro bodyweight set', detail: 'A few push-ups, pull-ups and squats. Any duration.' },
+  { id: 'n1', pillar: 'nutrition', label: 'First meal at or after 11:30', detail: 'First MEAL at or after 11:30 AM. Fuel (morning fuel cap, changeroom shake) is governed by its own line and is not a meal.' },
+  { id: 'n2', pillar: 'nutrition', label: 'Eating closed by 19:30', detail: 'All eating done by 19:30. Scored independently - a missed start never cancels the closure.' },
+  { id: 'n3', pillar: 'nutrition', label: 'Eat 2 meals, each within 30 minutes', detail: 'Two clear meals instead of all-day grazing.' },
+  { id: 'n4', pillar: 'nutrition', label: 'No added sugar', detail: 'Keep today free of foods with added sugar.' },
+  { id: 'n5', pillar: 'nutrition', label: 'No white rice or white flour', detail: 'Choose foods outside the refined white-rice and white-flour pattern.' },
+  { id: 'n6', pillar: 'nutrition', label: 'Stay gluten-free', detail: 'Keep both meals gluten-free.' },
+  { id: 'n7', pillar: 'nutrition', label: 'No fast food', detail: 'Cook or choose clean. No fast food today.' },
+  { id: 'm1', pillar: 'movement', label: 'Daily movement', detail: '8,000+ steps or 30 minutes of walking, cycling, elliptical or equivalent activity. Never-zero fallback: a micro bodyweight set counts when nothing else is possible.' },
+  { id: 'm2', pillar: 'movement', label: 'Strength training 3×/week', detail: 'Three strength sessions per week. Any split, any duration that counts.' },
 ]
 
 export default function DemoPage() {
