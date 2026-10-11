@@ -57,3 +57,12 @@ Schema sketch for experimental routines: `hypothesis text`, `exp_start date`, `e
 ## Out of scope
 
 - Sleep pillar routines; social/sharing features; any change to the committed/held two-state tracking model.
+
+## Change 5 — Split-held cards (2026-10-10, user: "Please build")
+
+Composite routines now split into independently-held rows sharing a `card_group`, rendered as ONE card: one Committed button commits every row, each row gets its own half-width Held button. Same decoupling principle as the window split — partial adherence counts, a miss on one half never cancels the other.
+
+- `Eat 2 meals, each within 30 minutes (Meal 1)` / `(Meal 2)` — `card_group='two-meals'`, mandatory, daily.
+- `Move 15 min after each meal (Meal 1)` / `(Meal 2)` — `card_group='post-meal-move'`, mandatory, daily. Move for 15 minutes after each meal (walk, bike, anything). Each scores on its own.
+
+Implementation: the card-group rendering is generic on both web and mobile (group by `card_group`, strip the ` (Meal N)` suffix for the card title and half-button labels). New split cards need only the DB rows — no app code changes. Tripwires, diary summary, evidence lines, and the 90-day target all operate per row.
