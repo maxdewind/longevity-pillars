@@ -8,6 +8,7 @@ import type { Protocol } from '@/lib/types'
 interface CheckState {
   committed: boolean
   held: boolean
+  held_at: string | null
 }
 
 interface CountState {
@@ -22,7 +23,7 @@ interface HistoryRow {
   log_date: string
 }
 
-const UNCHECKED: CheckState = { committed: false, held: false }
+const UNCHECKED: CheckState = { committed: false, held: false, held_at: null }
 const TRAILING_DAYS = 14
 const WEEKLY_TARGET = 3
 
@@ -58,14 +59,14 @@ export default function ProtocolPage() {
 
       const { data: rows } = await supabase
         .from('protocol_checks')
-        .select('protocol_id, committed, held')
+        .select('protocol_id, committed, held, held_at')
         .eq('user_id', user.id)
         .eq('log_date', todayISO())
 
       setProtocols(((protos as Protocol[] | null) ?? []).filter((p) => p.enabled))
       const map: Record<string, CheckState> = {}
       ;(rows ?? []).forEach((r) => {
-        map[r.protocol_id] = { committed: !!r.committed, held: !!r.held }
+        map[r.protocol_id] = { committed: !!r.committed, held: !!r.held, held_at: (r.held_at as string | null) ?? null }
       })
       setChecks(map)
 
@@ -133,6 +134,39 @@ export default function ProtocolPage() {
   }
 
   // (toggleCardCommitted / toggleCardMandatory above handle the grouped card.)
+
+  // The Meal 2 row of the two-meals card is the "Meal end" timestamp button:
+  // one tap stamps when the meal ended AND marks held (the timestamp is the
+  // evidence). Re-tapping updates the time - last tap wins. The timestamp
+  // turns the close into a gradient so 19:31 and 23:45 stop looking identical.
+  const isMealEnd = (p: Protocol) =>
+    p.card_group === 'two-meals' && / \(Meal 2\)$/.test(p.label)
+
+  const fmtTime = (iso: string) => {
+    const d = new Date(iso)
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  }
+
+  const stampMealEnd = async (p: Protocol) => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const now = new Date().toISOString()
+    const current = checks[p.id] ?? UNCHECKED
+    const next = { ...current, held: true, held_at: now }
+    setChecks((c) => ({ ...c, [p.id]: next }))
+    await supabase.from('protocol_checks').upsert(
+      {
+        user_id: user.id,
+        protocol_id: p.id,
+        log_date: todayISO(),
+        committed: next.committed,
+        held: true,
+        held_at: now,
+      },
+      { onConflict: 'user_id,protocol_id,log_date' }
+    )
+  }
 
   // A "miss" is a past day whose check row was left unheld, or a past day with
   // no check row at all once the routine became mandatory (mandatory means
@@ -314,6 +348,19 @@ export default function ProtocolPage() {
             </button>
             {rows.map((r) => {
               const s = checks[r.id] ?? UNCHECKED
+              if (isMealEnd(r)) {
+                const t = s.held_at ? fmtTime(s.held_at) : null
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => stampMealEnd(r)}
+                    className={s.held ? 'btn-primary' : 'btn-ghost'}
+                  >
+                    {t ? `Ended ${t}` : 'Meal end'}
+                  </button>
+                )
+              }
               return (
                 <button
                   key={r.id}
