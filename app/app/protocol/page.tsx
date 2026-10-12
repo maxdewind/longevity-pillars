@@ -135,10 +135,12 @@ export default function ProtocolPage() {
 
   // (toggleCardCommitted / toggleCardMandatory above handle the grouped card.)
 
-  // The Meal 2 row of the two-meals card is the "Meal end" timestamp button:
-  // one tap stamps when the meal ended AND marks held (the timestamp is the
-  // evidence). Re-tapping updates the time - last tap wins. The timestamp
-  // turns the close into a gradient so 19:31 and 23:45 stop looking identical.
+  // The Meal 2 row of the two-meals card is the "Meal end" timestamp button.
+  // It toggles: one tap stamps when the meal ended AND marks held (the
+  // timestamp is the evidence); tapping again clears the stamp and unmarks
+  // held, so an accidental tap is undoable. To move the stamp to a later
+  // time, tap twice (clear, then stamp). The timestamp turns the close into
+  // a gradient so 19:31 and 23:45 stop looking identical.
   const isMealEnd = (p: Protocol) =>
     p.card_group === 'two-meals' && / \(Meal 2\)$/.test(p.label)
 
@@ -147,13 +149,15 @@ export default function ProtocolPage() {
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
   }
 
-  const stampMealEnd = async (p: Protocol) => {
+  const toggleMealEnd = async (p: Protocol) => {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const now = new Date().toISOString()
     const current = checks[p.id] ?? UNCHECKED
-    const next = { ...current, held: true, held_at: now }
+    const clearing = !!current.held_at
+    const next = clearing
+      ? { ...current, held: false, held_at: null }
+      : { ...current, held: true, held_at: new Date().toISOString() }
     setChecks((c) => ({ ...c, [p.id]: next }))
     await supabase.from('protocol_checks').upsert(
       {
@@ -161,8 +165,8 @@ export default function ProtocolPage() {
         protocol_id: p.id,
         log_date: todayISO(),
         committed: next.committed,
-        held: true,
-        held_at: now,
+        held: next.held,
+        held_at: next.held_at,
       },
       { onConflict: 'user_id,protocol_id,log_date' }
     )
@@ -354,8 +358,9 @@ export default function ProtocolPage() {
                   <button
                     key={r.id}
                     type="button"
-                    onClick={() => stampMealEnd(r)}
+                    onClick={() => toggleMealEnd(r)}
                     className={s.held ? 'btn-primary' : 'btn-ghost'}
+                    title={t ? 'Tap again to clear' : 'Stamp when the meal ended'}
                   >
                     {t ? `Ended ${t}` : 'Meal end'}
                   </button>
