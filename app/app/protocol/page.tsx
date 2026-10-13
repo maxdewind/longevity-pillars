@@ -252,6 +252,7 @@ export default function ProtocolPage() {
 
   const nutrition = toCards(protocols.filter((p) => p.pillar === 'nutrition'))
   const movement = toCards(protocols.filter((p) => p.pillar === 'movement'))
+  const mind = toCards(protocols.filter((p) => p.pillar === 'mind'))
 
   const toggleCardCommitted = async (card: Card) => {
     const supabase = createClient()
@@ -452,6 +453,13 @@ export default function ProtocolPage() {
               <p className="text-sm mt-1 italic" style={{ color: '#9aa0ae' }}>{b.body}</p>
             </div>
           ))}
+        </section>
+      )}
+
+      {!loading && mind.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-base font-bold">Mind</h2>
+          {mind.map(renderCard)}
         </section>
       )}
 
