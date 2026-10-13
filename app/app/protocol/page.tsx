@@ -44,6 +44,7 @@ export default function ProtocolPage() {
   const [history, setHistory] = useState<HistoryRow[]>([])
   const [resolution, setResolution] = useState('')
   const [loading, setLoading] = useState(true)
+  const [confirmClear, setConfirmClear] = useState<Protocol | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -136,11 +137,10 @@ export default function ProtocolPage() {
   // (toggleCardCommitted / toggleCardMandatory above handle the grouped card.)
 
   // The Meal 2 row of the two-meals card is the "Meal end" timestamp button.
-  // It toggles: one tap stamps when the meal ended AND marks held (the
-  // timestamp is the evidence); tapping again clears the stamp and unmarks
-  // held, so an accidental tap is undoable. To move the stamp to a later
-  // time, tap twice (clear, then stamp). The timestamp turns the close into
-  // a gradient so 19:31 and 23:45 stop looking identical.
+  // One tap stamps when the meal ended AND marks held (the timestamp is the
+  // evidence). Tapping it again asks for confirmation before clearing, since
+  // the stamp feeds the meal-sleep gap - an accidental clear loses the data.
+  // To move the stamp to a later time, confirm the clear, then tap again.
   const isMealEnd = (p: Protocol) =>
     p.card_group === 'two-meals' && / \(Meal 2\)$/.test(p.label)
 
@@ -149,15 +149,10 @@ export default function ProtocolPage() {
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
   }
 
-  const toggleMealEnd = async (p: Protocol) => {
+  const writeMealEnd = async (p: Protocol, next: CheckState) => {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const current = checks[p.id] ?? UNCHECKED
-    const clearing = !!current.held_at
-    const next = clearing
-      ? { ...current, held: false, held_at: null }
-      : { ...current, held: true, held_at: new Date().toISOString() }
     setChecks((c) => ({ ...c, [p.id]: next }))
     await supabase.from('protocol_checks').upsert(
       {
@@ -170,6 +165,15 @@ export default function ProtocolPage() {
       },
       { onConflict: 'user_id,protocol_id,log_date' }
     )
+  }
+
+  const onMealEndTap = (p: Protocol) => {
+    const current = checks[p.id] ?? UNCHECKED
+    if (current.held_at) {
+      setConfirmClear(p)
+      return
+    }
+    void writeMealEnd(p, { ...current, held: true, held_at: new Date().toISOString() })
   }
 
   // A "miss" is a past day whose check row was left unheld, or a past day with
@@ -358,9 +362,9 @@ export default function ProtocolPage() {
                   <button
                     key={r.id}
                     type="button"
-                    onClick={() => toggleMealEnd(r)}
+                    onClick={() => onMealEndTap(r)}
                     className={s.held ? 'btn-primary' : 'btn-ghost'}
-                    title={t ? 'Tap again to clear' : 'Stamp when the meal ended'}
+                    title={t ? 'Tap again to unclick' : 'Stamp when the meal ended'}
                   >
                     {t ? `Ended ${t}` : 'Meal end'}
                   </button>
@@ -463,6 +467,37 @@ export default function ProtocolPage() {
           <h2 className="text-base font-bold">Movement</h2>
           {movement.map(renderCard)}
         </section>
+      )}
+
+      {confirmClear && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-6"
+          style={{ background: 'rgba(0,0,0,0.6)' }}
+          onClick={() => setConfirmClear(null)}
+        >
+          <div className="card max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <p className="font-bold">Are you sure?</p>
+            <p className="text-sm mt-2" style={{ color: '#9aa0ae' }}>
+              Meal end 3 hours before bed is really important for how you will feel tomorrow morning.
+            </p>
+            <div className="grid grid-cols-2 gap-2 mt-4">
+              <button type="button" className="btn-primary" onClick={() => setConfirmClear(null)}>
+                Leave it as it is
+              </button>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => {
+                  const p = confirmClear
+                  setConfirmClear(null)
+                  void writeMealEnd(p, { ...(checks[p.id] ?? UNCHECKED), held: false, held_at: null })
+                }}
+              >
+                Yes, unclick meal end
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   )
