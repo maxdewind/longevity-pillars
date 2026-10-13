@@ -69,6 +69,10 @@ Implementation: the card-group rendering is generic on both web and mobile (grou
 
 ## Change 6 — Meal-end timestamp (2026-10-12, user's design)
 
+## Change 7 — Mind pillar (2026-10-12, user's request)
+
+A third pillar, `mind`, now exists alongside nutrition and movement (migration `0010_mind_pillar.sql` widens the pillar check constraint). It renders as its own section at the very top of the Protocol page, above Nutrition. First routine: **Keep positive thoughts** ("Stay with thoughts that move you forward."), mandatory, daily. The mind/stress pillar was always in the long-term vision (Rung 4 era); this opens it early with a single daily check.
+
 The Meal 2 half-button on the two-meals card is now **Meal end**, and it toggles: one tap writes `held_at` (timestamptz on `protocol_checks`) and marks Held — the timestamp is the evidence; tapping it again asks "Are you sure?" before clearing ("Meal end 3 hours before bed is really important for how you will feel tomorrow morning."), with "Leave it as it is" / "Yes, unclick meal end" — so a stray tap can't silently lose the timestamp that feeds the meal-sleep gap. To move the stamp to a later time, confirm the clear, then tap again. The button shows "Ended HH:MM" once stamped. The 19:30 close card stays a binary bright line. Rationale: the timestamp turns the close into a gradient, so 19:31 and 23:45 stop looking identical — kills the "failed it anyway" spiral.
 
 Feeds the **meal–sleep gap** metric (last bite → sleep onset) on the Morning Health Stats dashboard, shown against the personal median. Timestamp sources, in priority order: (1) the Meal end button tap, (2) the 21:30 "kitchen's closed" check-in confirmation backfills `held_at` (null-guard never overwrites a manual tap). Sleep onset comes from the existing Apple Health pull; the morning pull cron fetches yesterday's stamp.
