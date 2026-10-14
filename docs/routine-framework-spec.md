@@ -71,6 +71,10 @@ Implementation: the card-group rendering is generic on both web and mobile (grou
 
 ## Change 7 — Mind pillar (2026-10-12, user's request)
 
+## Change 8 — "No ultra-processed foods" (2026-10-14, user's request)
+
+New mandatory daily nutrition routine, positioned immediately after "No fast food" (migration `0011_no_upf.sql` bumps later nutrition routines by one position to make room). Detail: "Cook or choose clean. Nothing ultra-processed today."
+
 A third pillar, `mind`, now exists alongside nutrition and movement (migration `0010_mind_pillar.sql` widens the pillar check constraint). It renders as its own section at the very top of the Protocol page, above Nutrition. First routine: **Keep positive thoughts** ("Stay with thoughts that move you forward."), mandatory, daily. The mind/stress pillar was always in the long-term vision (Rung 4 era); this opens it early with a single daily check.
 
 The Meal 2 half-button on the two-meals card is now **Meal end**, and it toggles: one tap writes `held_at` (timestamptz on `protocol_checks`) and marks Held — the timestamp is the evidence; tapping it again asks "Are you sure?" before clearing ("Meal end 3 hours before bed is really important for how you will feel tomorrow morning."), with "Leave it as it is" / "Yes, unclick meal end" — so a stray tap can't silently lose the timestamp that feeds the meal-sleep gap. To move the stamp to a later time, confirm the clear, then tap again. The button shows "Ended HH:MM" once stamped. The 19:30 close card stays a binary bright line. Rationale: the timestamp turns the close into a gradient, so 19:31 and 23:45 stop looking identical — kills the "failed it anyway" spiral.
