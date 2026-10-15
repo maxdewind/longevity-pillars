@@ -35,31 +35,38 @@ export default function NewExperimentPage() {
   const [hasActive, setHasActive] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoaded(true); return }
-      const { data: exp } = await supabase
-        .from('experiments')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .limit(1)
-      if (exp && exp.length > 0) {
-        setHasActive(true)
-        setLoaded(true)
-        return
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) { setLoaded(true); return }
+        const { data: exp, error: eErr } = await supabase
+          .from('experiments')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('status', 'active')
+          .limit(1)
+        if (eErr) throw eErr
+        if (exp && exp.length > 0) {
+          setHasActive(true)
+          setLoaded(true)
+          return
+        }
+        const { data: rows, error: pErr } = await supabase
+          .from('protocols')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('is_mandatory', true)
+          .eq('enabled', true)
+          .order('position')
+        if (pErr) throw pErr
+        setBaseline((rows as Protocol[] | null) ?? [])
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Could not load.')
       }
-      const { data: rows } = await supabase
-        .from('protocols')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_mandatory', true)
-        .eq('enabled', true)
-        .order('position')
-      setBaseline((rows as Protocol[] | null) ?? [])
       setLoaded(true)
     }
     load()
@@ -76,48 +83,76 @@ export default function NewExperimentPage() {
     const title = change.trim()
     if (!title || saving) return
     setSaving(true)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setSaving(false); return }
-    const { data: last } = await supabase
-      .from('protocols')
-      .select('position')
-      .eq('user_id', user.id)
-      .eq('pillar', pillar)
-      .order('position', { ascending: false })
-      .limit(1)
-    const pos = ((last as { position: number }[] | null)?.[0]?.position ?? -1) + 1
-    const { data: proto, error: pErr } = await supabase
-      .from('protocols')
-      .insert({
+    setError(null)
+    try {
+      const supabase = createClient()
+      const { data: { user }, error: uErr } = await supabase.auth.getUser()
+      if (uErr) throw uErr
+      if (!user) throw new Error('Not signed in. Please log in again.')
+      const { data: activeNow, error: aErr } = await supabase
+        .from('experiments')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .limit(1)
+      if (aErr) throw aErr
+      if (activeNow && activeNow.length > 0) throw new Error('An experiment is already active.')
+      // Reuse the routine if a retry already created it.
+      const { data: dup, error: dErr } = await supabase
+        .from('protocols')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('label', title)
+        .limit(1)
+      if (dErr) throw dErr
+      let protocolId = (dup as { id: string }[] | null)?.[0]?.id
+      if (!protocolId) {
+        const { data: last } = await supabase
+          .from('protocols')
+          .select('position')
+          .eq('user_id', user.id)
+          .eq('pillar', pillar)
+          .order('position', { ascending: false })
+          .limit(1)
+        const pos = ((last as { position: number }[] | null)?.[0]?.position ?? -1) + 1
+        const { data: proto, error: pErr } = await supabase
+          .from('protocols')
+          .insert({
+            user_id: user.id,
+            pillar,
+            label: title,
+            detail: 'Self-experiment change. One change at a time.',
+            position: pos,
+            is_mandatory: false,
+            mandatory_since: null,
+            cadence: 'daily',
+            is_experimental: true,
+          })
+          .select('id')
+          .single()
+        if (pErr) throw pErr
+        if (!proto) throw new Error('Could not create the routine.')
+        protocolId = (proto as { id: string }).id
+      }
+      const { error: eErr } = await supabase.from('experiments').insert({
         user_id: user.id,
-        pillar,
-        label: title,
-        detail: 'Self-experiment change. One change at a time.',
-        position: pos,
-        is_mandatory: false,
-        mandatory_since: null,
-        cadence: 'daily',
-        is_experimental: true,
+        protocol_id: protocolId,
+        title,
+        hypothesis: hypothesis.trim() || null,
+        start_date: startDate,
+        end_date: endDate,
+        duration_days: days,
+        baseline_snapshot: baseline
+          .filter((b) => !excluded.has(b.id))
+          .map((b) => ({ id: b.id, label: b.label })),
+        status: 'active',
       })
-      .select('id')
-      .single()
-    if (pErr || !proto) { setSaving(false); return }
-    const { error: eErr } = await supabase.from('experiments').insert({
-      user_id: user.id,
-      protocol_id: (proto as { id: string }).id,
-      title,
-      hypothesis: hypothesis.trim() || null,
-      start_date: startDate,
-      end_date: endDate,
-      duration_days: days,
-      baseline_snapshot: baseline
-        .filter((b) => !excluded.has(b.id))
-        .map((b) => ({ id: b.id, label: b.label })),
-      status: 'active',
-    })
+      if (eErr) throw eErr
+      router.push('/app/experiment')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Something went wrong.')
+    }
     setSaving(false)
-    if (!eErr) router.push('/app/experiment')
   }
 
   const chip = (on: boolean) => ({
@@ -151,6 +186,9 @@ export default function NewExperimentPage() {
     <main className="p-6 max-w-xl mx-auto">
       <h1 className="text-2xl font-bold">New Experiment</h1>
       <p className="mt-1 text-sm" style={{ color: '#9aa0ae' }}>Pre-register one change. The baseline stays the control.</p>
+      {error && (
+        <p className="mt-4 text-sm" style={{ color: '#e0607e' }}>{error}</p>
+      )}
 
       <p className="mt-6 text-xs font-semibold tracking-wider" style={{ color: '#9aa0ae' }}>THE ONE CHANGE</p>
       <input
@@ -231,6 +269,10 @@ export default function NewExperimentPage() {
       </div>
 
       <p className="mt-4 text-xs" style={{ color: '#9aa0ae' }}>One change at a time. Everything else stays constant.</p>
+
+      {error && (
+        <p className="mt-4 text-sm" style={{ color: '#e0607e' }}>{error}</p>
+      )}
 
       <button
         onClick={start}
