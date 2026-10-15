@@ -31,6 +31,7 @@ export default function NewExperimentPage() {
   const [days, setDays] = useState(7)
   const [startWhen, setStartWhen] = useState<'today' | 'monday'>('today')
   const [baseline, setBaseline] = useState<Protocol[]>([])
+  const [excluded, setExcluded] = useState<Set<string>>(new Set())
   const [hasActive, setHasActive] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -110,7 +111,9 @@ export default function NewExperimentPage() {
       start_date: startDate,
       end_date: endDate,
       duration_days: days,
-      baseline_snapshot: baseline.map((b) => ({ id: b.id, label: b.label })),
+      baseline_snapshot: baseline
+        .filter((b) => !excluded.has(b.id))
+        .map((b) => ({ id: b.id, label: b.label })),
       status: 'active',
     })
     setSaving(false)
@@ -197,19 +200,34 @@ export default function NewExperimentPage() {
       </div>
       <p className="mt-2 text-xs" style={{ color: '#9aa0ae' }}>Weeks run {startLabel(startDate)} – {startLabel(endDate)}. Going forward, start on Monday.</p>
 
-      <p className="mt-6 text-xs font-semibold tracking-wider" style={{ color: '#9aa0ae' }}>BASELINE – THESE STAY EXACTLY AS THEY ARE</p>
+      <p className="mt-6 text-xs font-semibold tracking-wider" style={{ color: '#9aa0ae' }}>BASELINE – UNCHECK WHAT YOU WON&apos;T ENFORCE</p>
       <div className="card mt-2 p-4">
         {baseline.length === 0 && <p className="text-sm" style={{ color: '#9aa0ae' }}>No mandatory routines yet.</p>}
-        {baseline.map((b) => (
-          <div key={b.id} className="flex items-center gap-3 py-2" style={{ borderBottom: '1px solid #2c313d' }}>
-            <span style={{
-              width: 22, height: 22, borderRadius: '50%', background: '#e0607e',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              color: '#fff', fontSize: 13, fontWeight: 700, flexShrink: 0,
-            }}>✓</span>
-            <span className="text-sm">{b.label}</span>
-          </div>
-        ))}
+        {baseline.map((b) => {
+          const on = !excluded.has(b.id)
+          return (
+            <button
+              key={b.id}
+              onClick={() => setExcluded((prev) => {
+                const next = new Set(prev)
+                if (next.has(b.id)) next.delete(b.id)
+                else next.add(b.id)
+                return next
+              })}
+              className="flex items-center gap-3 py-2 w-full text-left"
+              style={{ borderBottom: '1px solid #2c313d', background: 'none', cursor: 'pointer' }}
+            >
+              <span style={{
+                width: 22, height: 22, borderRadius: '50%',
+                background: on ? '#e0607e' : 'transparent',
+                border: on ? 'none' : '1px solid #4a5160',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                color: '#fff', fontSize: 13, fontWeight: 700, flexShrink: 0,
+              }}>{on ? '✓' : ''}</span>
+              <span className="text-sm" style={{ color: on ? '#fff' : '#9aa0ae' }}>{b.label}</span>
+            </button>
+          )
+        })}
       </div>
 
       <p className="mt-4 text-xs" style={{ color: '#9aa0ae' }}>One change at a time. Everything else stays constant.</p>
