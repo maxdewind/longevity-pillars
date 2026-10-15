@@ -152,12 +152,16 @@ export default function ExperimentPage() {
   const lastWeek = weights.filter((w) => w.log_date < exp.start_date).map((w) => w.weight_lb)
   const thisMed = median(thisWeek)
   const lastMed = median(lastWeek)
-  const delta = thisMed != null && lastMed != null ? thisMed - lastMed : null
+  const inExp = weights.filter((w) => w.log_date >= exp.start_date)
+  const anchor = inExp[0] ?? null
+  const latestInExp = inExp[inExp.length - 1] ?? null
+  const runDelta = anchor && latestInExp ? latestInExp.weight_lb - anchor.weight_lb : null
+  const verdictDelta = thisMed != null && lastMed != null ? thisMed - lastMed : null
 
   const winStart = addDays(exp.start_date, -7)
   const winDays = diffDays(winStart, exp.end_date) + 1
-  const wMin = Math.min(...weights.map((w) => w.weight_lb), ...(thisMed != null ? [thisMed] : []), ...(lastMed != null ? [lastMed] : []))
-  const wMax = Math.max(...weights.map((w) => w.weight_lb), ...(thisMed != null ? [thisMed] : []), ...(lastMed != null ? [lastMed] : []))
+  const wMin = Math.min(...weights.map((w) => w.weight_lb), ...(thisMed != null ? [thisMed] : []), ...(lastMed != null ? [lastMed] : []), ...(anchor ? [anchor.weight_lb] : []))
+  const wMax = Math.max(...weights.map((w) => w.weight_lb), ...(thisMed != null ? [thisMed] : []), ...(lastMed != null ? [lastMed] : []), ...(anchor ? [anchor.weight_lb] : []))
   const pad = Math.max((wMax - wMin) * 0.2, 0.5)
   const W = 320, H = 130, P = 12
   const xFor = (iso: string) => P + (diffDays(winStart, iso) / Math.max(winDays - 1, 1)) * (W - 2 * P)
@@ -199,23 +203,38 @@ export default function ExperimentPage() {
 
       <div className="card mt-4 p-5">
         <p className="text-xs font-semibold tracking-wider" style={{ color: '#9aa0ae' }}>WEIGHT CHANGE</p>
-        {delta != null ? (
+        {!unlocked ? (
+          anchor && runDelta != null ? (
+            <>
+              <p className="mt-2 text-3xl font-bold">
+                <span style={{ color: '#e0607e' }}>{runDelta > 0 ? '+' : ''}{runDelta.toFixed(1)} lb</span>
+                <span className="text-xl"> vs day 1</span>
+              </p>
+              <p className="mt-1 text-xs" style={{ color: '#9aa0ae' }}>Anchor {anchor.weight_lb.toFixed(1)} lb · {fmtD(anchor.log_date)}. Signal check, not proof.</p>
+            </>
+          ) : (
+            <p className="mt-2 text-sm" style={{ color: '#9aa0ae' }}>Weigh in daily on the Weight tab. Day 1 sets the anchor.</p>
+          )
+        ) : verdictDelta != null ? (
           <>
             <p className="mt-2 text-3xl font-bold">
-              <span style={{ color: '#e0607e' }}>{delta > 0 ? '+' : ''}{delta.toFixed(1)} lb</span>
+              <span style={{ color: '#e0607e' }}>{verdictDelta > 0 ? '+' : ''}{verdictDelta.toFixed(1)} lb</span>
               <span className="text-xl"> vs last week</span>
             </p>
             <p className="mt-1 text-xs" style={{ color: '#9aa0ae' }}>Week median {thisMed!.toFixed(1)} lb vs prior week {lastMed!.toFixed(1)} lb. Signal check, not proof.</p>
           </>
         ) : (
-          <p className="mt-2 text-sm" style={{ color: '#9aa0ae' }}>Weigh in daily on the Weight tab. The comparison fills in as you log.</p>
+          <p className="mt-2 text-sm" style={{ color: '#9aa0ae' }}>Not enough weigh-ins for the week comparison.</p>
         )}
         {weights.length >= 2 && (
           <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 w-full" style={{ maxHeight: 150 }}>
-            {thisMed != null && (
+            {unlocked && thisMed != null && (
               <line x1={0} x2={W} y1={yFor(thisMed)} y2={yFor(thisMed)} stroke="#e0607e" strokeWidth={1.5} />
             )}
-            {lastMed != null && (
+            {!unlocked && anchor && (
+              <line x1={0} x2={W} y1={yFor(anchor.weight_lb)} y2={yFor(anchor.weight_lb)} stroke="#9aa0ae" strokeWidth={1.5} strokeDasharray="5 4" />
+            )}
+            {unlocked && lastMed != null && (
               <line x1={0} x2={W} y1={yFor(lastMed)} y2={yFor(lastMed)} stroke="#9aa0ae" strokeWidth={1.5} strokeDasharray="5 4" />
             )}
             {weights.map((w) => (
@@ -225,8 +244,11 @@ export default function ExperimentPage() {
         )}
         {weights.length >= 2 && (
           <p className="mt-1 text-xs" style={{ color: '#9aa0ae' }}>
-            <span style={{ color: '#e0607e' }}>—</span> this week median&nbsp;&nbsp;
-            <span style={{ color: '#9aa0ae' }}>- -</span> last week median
+            {!unlocked && anchor ? (
+              <><span style={{ color: '#9aa0ae' }}>- -</span> day-1 anchor ({anchor.weight_lb.toFixed(1)} lb)</>
+            ) : (
+              <><span style={{ color: '#e0607e' }}>—</span> this week median&nbsp;&nbsp;<span style={{ color: '#9aa0ae' }}>- -</span> pre-experiment median</>
+            )}
           </p>
         )}
       </div>
