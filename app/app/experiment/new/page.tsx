@@ -41,6 +41,9 @@ export default function NewExperimentPage() {
   const [loaded, setLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Holds the routine id once created, so a retry in the same session reuses
+  // it even if the title was edited between attempts.
+  const [createdProtocolId, setCreatedProtocolId] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -102,15 +105,20 @@ export default function NewExperimentPage() {
         .limit(1)
       if (aErr) throw aErr
       if (activeNow && activeNow.length > 0) throw new Error('An experiment is already active.')
-      // Reuse the routine if a retry already created it.
-      const { data: dup, error: dErr } = await supabase
-        .from('protocols')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('label', title)
-        .limit(1)
-      if (dErr) throw dErr
-      let protocolId = (dup as { id: string }[] | null)?.[0]?.id
+      // Reuse the routine if a retry already created it: prefer the id from this
+      // session, then fall back to an exact label match.
+      let protocolId = createdProtocolId
+      if (!protocolId) {
+        const { data: dup, error: dErr } = await supabase
+          .from('protocols')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('label', title)
+          .eq('is_experimental', true)
+          .limit(1)
+        if (dErr) throw dErr
+        protocolId = (dup as { id: string }[] | null)?.[0]?.id ?? null
+      }
       if (!protocolId) {
         const { data: last } = await supabase
           .from('protocols')
@@ -138,6 +146,11 @@ export default function NewExperimentPage() {
         if (pErr) throw pErr
         if (!proto) throw new Error('Could not create the routine.')
         protocolId = (proto as { id: string }).id
+        setCreatedProtocolId(protocolId)
+      } else {
+        // Keep a reused routine in sync when the title was edited between attempts.
+        const { error: uErr2 } = await supabase.from('protocols').update({ label: title }).eq('id', protocolId)
+        if (uErr2) throw uErr2
       }
       const { error: eErr } = await supabase.from('experiments').insert({
         user_id: user.id,
