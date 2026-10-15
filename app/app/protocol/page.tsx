@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { todayISO } from '@/lib/format'
-import type { Protocol } from '@/lib/types'
+import type { Protocol, Experiment } from '@/lib/types'
 
 interface CheckState {
   committed: boolean
@@ -45,6 +46,7 @@ export default function ProtocolPage() {
   const [resolution, setResolution] = useState('')
   const [loading, setLoading] = useState(true)
   const [confirmClear, setConfirmClear] = useState<Protocol | null>(null)
+  const [experiment, setExperiment] = useState<Experiment | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -98,6 +100,14 @@ export default function ProtocolPage() {
         log_date: r.log_date,
       })))
       setResolution((profile?.resolution as string | undefined) ?? '')
+      const { data: expRows } = await supabase
+        .from('experiments')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1)
+      setExperiment(((expRows as Experiment[] | null) ?? [])[0] ?? null)
       const firstDate = (firstRow?.[0]?.log_date as string | undefined) ?? todayISO()
       const windowDays = Math.min(TRAILING_DAYS, Math.max(1, daysBetween(firstDate, todayISO()) + 1))
       const countMap: Record<string, CountState> = {}
@@ -444,6 +454,21 @@ export default function ProtocolPage() {
       </p>
 
       {loading && <p className="text-sm" style={{ color: '#9aa0ae' }}>Loading...</p>}
+
+      {!loading && experiment && (
+        <Link href="/app/experiment" className="card block" style={{ textDecoration: 'none', borderColor: '#e0607e' }}>
+          <p className="text-xs font-semibold tracking-wider" style={{ color: '#e0607e' }}>SELF-EXPERIMENT · DAY {Math.min(Math.max(Math.round((new Date(todayISO() + 'T12:00:00').getTime() - new Date(experiment.start_date + 'T12:00:00').getTime()) / 86400000) + 1, 1), experiment.duration_days)} OF {experiment.duration_days}</p>
+          <p className="text-sm font-bold mt-1">{experiment.title}</p>
+          <p className="text-xs mt-1" style={{ color: '#9aa0ae' }}>Tap to view weight vs adherence →</p>
+        </Link>
+      )}
+
+      {!loading && !experiment && (
+        <Link href="/app/experiment/new" className="card block" style={{ textDecoration: 'none' }}>
+          <p className="text-sm font-bold">Run a self-experiment</p>
+          <p className="text-xs mt-1" style={{ color: '#9aa0ae' }}>Pre-register one change for a week and track it against your baseline.</p>
+        </Link>
+      )}
 
       {!loading && banners.length > 0 && (
         <section className="space-y-3">

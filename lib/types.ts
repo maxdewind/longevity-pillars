@@ -6,3 +6,5 @@ export interface WeightLog { id: string; user_id: string; log_date: string; weig
 export interface MealLog { id: string; user_id: string; log_date: string; meal_number: 1 | 2; description: string }
 export interface SlipLog { id: string; user_id: string; occurred_at: string; note: string }
 export interface WaveLog { id: string; user_id: string; occurred_at: string; duration_min: number }
+export interface ExperimentBaselineItem { id: string; label: string }
+export interface Experiment { id: string; user_id: string; protocol_id: string; title: string; hypothesis: string | null; start_date: string; end_date: string; duration_days: number; baseline_snapshot: ExperimentBaselineItem[]; status: 'active' | 'done'; verdict: 'keep' | 'another_week' | 'drop' | null; created_at: string }
