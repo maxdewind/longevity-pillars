@@ -22,6 +22,11 @@ const diffDays = (a: string, b: string) =>
 const fmtD = (iso: string) =>
   new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 
+const errMsg = (e: unknown) =>
+  e instanceof Error
+    ? e.message
+    : ((e as { message?: string } | null)?.message ?? JSON.stringify(e))
+
 export default function ExperimentPage() {
   const [exp, setExp] = useState<Experiment | null>(null)
   const [heldByDay, setHeldByDay] = useState<Record<string, boolean>>({})
@@ -29,19 +34,23 @@ export default function ExperimentPage() {
   const [baselineHeldPct, setBaselineHeldPct] = useState<number | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [acting, setActing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoaded(true); return }
-      const { data: rows } = await supabase
-        .from('experiments')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false })
-        .limit(1)
+      try {
+        const supabase = createClient()
+        const { data: { user }, error: uErr } = await supabase.auth.getUser()
+        if (uErr) throw uErr
+        if (!user) { setLoaded(true); return }
+        const { data: rows, error: eErr } = await supabase
+          .from('experiments')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(1)
+        if (eErr) throw eErr
       const e = ((rows as Experiment[] | null) ?? [])[0]
       if (!e) { setLoaded(true); return }
       setExp(e)
@@ -85,6 +94,9 @@ export default function ExperimentPage() {
         setBaselineHeldPct(denom > 0 ? list.filter((c) => c.held).length / denom : null)
       } else {
         setBaselineHeldPct(null)
+      }
+      } catch (e) {
+        setError(errMsg(e))
       }
       setLoaded(true)
     }
@@ -156,6 +168,9 @@ export default function ExperimentPage() {
   return (
     <main className="p-6 max-w-xl mx-auto">
       <h1 className="text-2xl font-bold">Self-Experiment</h1>
+      {error && (
+        <p className="mt-4 text-sm" style={{ color: '#e0607e' }}>{error}</p>
+      )}
 
       <div className="card mt-4 p-5">
         <p className="text-xs" style={{ color: '#9aa0ae' }}>PRE-REGISTERED PROMISE</p>
