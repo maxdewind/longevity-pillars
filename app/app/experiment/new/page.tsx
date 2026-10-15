@@ -13,6 +13,11 @@ const PILLARS = [
   { value: 'mind', label: 'Mind' },
 ] as const
 
+const errMsg = (e: unknown) =>
+  e instanceof Error
+    ? e.message
+    : ((e as { message?: string } | null)?.message ?? JSON.stringify(e))
+
 const nextMondayISO = () => {
   const d = new Date()
   const add = ((8 - d.getDay()) % 7) || 7
@@ -65,7 +70,7 @@ export default function NewExperimentPage() {
         if (pErr) throw pErr
         setBaseline((rows as Protocol[] | null) ?? [])
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not load.')
+        setError(errMsg(e))
       }
       setLoaded(true)
     }
@@ -150,7 +155,7 @@ export default function NewExperimentPage() {
       if (eErr) throw eErr
       router.push('/app/experiment')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong.')
+      setError(errMsg(e))
     }
     setSaving(false)
   }
