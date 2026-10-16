@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { MILESTONES } from '@/lib/milestones'
+import { buildDemoSnapshot } from '@/lib/demoSnapshot'
 import type { Attempt, Protocol } from '@/lib/types'
 
 const RECORD_MILESTONES = [7, 30, 100]
@@ -18,6 +19,9 @@ export default function AchievementsPage() {
   const [attempt, setAttempt] = useState<Attempt | null>(null)
   const [now, setNow] = useState(() => new Date())
   const [records, setRecords] = useState<RoutineRecord[]>([])
+  const [publishing, setPublishing] = useState(false)
+  const [publishedAt, setPublishedAt] = useState<string | null>(null)
+  const [publishError, setPublishError] = useState<string | null>(null)
 
   useEffect(() => {
     const tick = setInterval(() => setNow(new Date()), 1000)
@@ -66,10 +70,41 @@ export default function AchievementsPage() {
           holds: holdsByProto[p.id] ?? 0,
         }))
       )
+
+      const { data: snap } = await supabase
+        .from('demo_snapshot')
+        .select('updated_at')
+        .eq('user_id', uid)
+        .limit(1)
+      setPublishedAt(((snap as { updated_at: string }[] | null)?.[0]?.updated_at) ?? null)
       setLoading(false)
     }
     init()
   }, [])
+
+  const publishDemo = async () => {
+    if (publishing) return
+    setPublishing(true)
+    setPublishError(null)
+    try {
+      const supabase = createClient()
+      const { data: userData } = await supabase.auth.getUser()
+      const uid = userData.user?.id ?? null
+      if (!uid) throw new Error('Not signed in.')
+      const payload = await buildDemoSnapshot(supabase, uid)
+      const { error } = await supabase
+        .from('demo_snapshot')
+        .upsert(
+          { user_id: uid, payload, updated_at: new Date().toISOString() },
+          { onConflict: 'user_id' }
+        )
+      if (error) throw error
+      setPublishedAt(payload.published_at)
+    } catch (e) {
+      setPublishError(e instanceof Error ? e.message : 'Publishing failed.')
+    }
+    setPublishing(false)
+  }
 
   if (loading) {
     return (
@@ -126,6 +161,40 @@ export default function AchievementsPage() {
       <p className="text-[#9aa0ae] text-xs mt-6 text-center">
         Milestones 2-12 are proposed timings. The journey is the point.
       </p>
+
+      <section className="mt-8">
+        <h2 className="text-xl font-bold mb-1">Public demo</h2>
+        <p className="text-sm mb-4" style={{ color: '#9aa0ae' }}>
+          The public &ldquo;Peek inside&rdquo; page shows a frozen copy of your
+          real protocol, experiment and weight trend. Nothing goes public until
+          you publish, and nothing updates until you publish again.
+        </p>
+        <div className="card">
+          {publishedAt && (
+            <p className="text-sm mb-3" style={{ color: '#9aa0ae' }}>
+              Last published{' '}
+              {new Date(publishedAt).toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+              })}
+            </p>
+          )}
+          {publishError && (
+            <p className="text-sm mb-3" style={{ color: '#e0607e' }}>{publishError}</p>
+          )}
+          <button
+            type="button"
+            onClick={publishDemo}
+            disabled={publishing}
+            className="btn-primary w-full"
+            style={{ opacity: publishing ? 0.5 : 1 }}
+          >
+            {publishing ? 'Publishing…' : 'Publish demo snapshot'}
+          </button>
+        </div>
+      </section>
 
       {records.length > 0 && (
         <section className="mt-8">

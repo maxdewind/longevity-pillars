@@ -2,38 +2,109 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
 import { MILESTONES, getJourneyState } from '@/lib/milestones'
 import { formatHMS, formatRemaining, formatMoney } from '@/lib/format'
+import type { DemoPayload, DemoRoutineSnapshot } from '@/lib/demoSnapshot'
+
+// The public demo mirrors this account's published snapshot.
+const FEATURED_USER_ID = 'd9409fba-fedc-48bb-b457-1c9e9dc91ad3'
 
 const SAVINGS_PER_DAY = 22.5
 const WAKING_SECONDS_PER_DAY = 16 * 3600
 const WAVE_MINUTES = 20
 const WAVE_SECONDS = WAVE_MINUTES * 60
 
-interface DemoProtocol {
-  id: string
-  pillar: 'nutrition' | 'movement'
-  label: string
-  detail: string
+const fmtPub = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+const shortHalfName = (label: string) => {
+  const m = label.match(/ \((Meal \d)\)$/)
+  return m ? m[1] : label
 }
 
-const DEMO_PROTOCOLS: DemoProtocol[] = [
-  { id: 'n1', pillar: 'nutrition', label: 'First meal at or after 11:30', detail: 'First MEAL at or after 11:30 AM. Fuel (morning fuel cap, changeroom shake) is governed by its own line and is not a meal.' },
-  { id: 'n2', pillar: 'nutrition', label: 'Eating closed by 19:30', detail: 'All eating done by 19:30. Scored independently - a missed start never cancels the closure.' },
-  { id: 'n3', pillar: 'nutrition', label: 'Eat 2 meals, each within 30 minutes', detail: 'Two clear meals instead of all-day grazing.' },
-  { id: 'n4', pillar: 'nutrition', label: 'No added sugar', detail: 'Keep today free of foods with added sugar.' },
-  { id: 'n5', pillar: 'nutrition', label: 'No white rice or white flour', detail: 'Choose foods outside the refined white-rice and white-flour pattern.' },
-  { id: 'n6', pillar: 'nutrition', label: 'Stay gluten-free', detail: 'Keep both meals gluten-free.' },
-  { id: 'n7', pillar: 'nutrition', label: 'No fast food', detail: 'Cook or choose clean. No fast food today.' },
-  { id: 'm1', pillar: 'movement', label: 'Daily movement', detail: '8,000+ steps or 30 minutes of walking, cycling, elliptical or equivalent activity. Never-zero fallback: a micro bodyweight set counts when nothing else is possible.' },
-  { id: 'm2', pillar: 'movement', label: 'Strength training 3×/week', detail: 'Three strength sessions per week. Any split, any duration that counts.' },
-]
+const fmtTime = (iso: string) => {
+  const d = new Date(iso)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
+
+function statePill(on: boolean, label: string) {
+  return (
+    <span
+      className={`text-xs font-semibold px-3 py-2 rounded-lg border whitespace-nowrap ${
+        on ? 'bg-[#f0506e] border-[#f0506e] text-white' : 'border-[#2c313d] text-[#9aa0ae]'
+      }`}
+    >
+      {on ? `✓ ${label}` : label}
+    </span>
+  )
+}
+
+interface DemoCard {
+  key: string
+  title: string
+  detail: string
+  rows: DemoRoutineSnapshot[]
+}
+
+function toCards(routines: DemoRoutineSnapshot[]): DemoCard[] {
+  const cards: DemoCard[] = []
+  routines.forEach((r) => {
+    if (r.card_group) {
+      const existing = cards.find((c) => c.key === r.card_group)
+      if (existing) {
+        existing.rows.push(r)
+        existing.rows.sort((a, b) => a.label.localeCompare(b.label))
+        return
+      }
+      cards.push({
+        key: r.card_group,
+        title: r.label.replace(/ \(Meal \d\)$/, ''),
+        detail: r.detail,
+        rows: [r],
+      })
+      return
+    }
+    cards.push({ key: r.id, title: r.label, detail: r.detail, rows: [r] })
+  })
+  return cards
+}
+
+function WeightSparkline({ weights }: { weights: { log_date: string; weight_lb: number }[] }) {
+  const pts = weights.slice(-30)
+  if (pts.length < 2) return null
+  const W = 320
+  const H = 90
+  const P = 8
+  const vals = pts.map((w) => w.weight_lb)
+  const min = Math.min(...vals)
+  const max = Math.max(...vals)
+  const pad = Math.max((max - min) * 0.2, 0.5)
+  const xFor = (i: number) => P + (i / Math.max(pts.length - 1, 1)) * (W - 2 * P)
+  const yFor = (v: number) => P + (1 - (v - (min - pad)) / (max + pad - (min - pad))) * (H - 2 * P)
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 w-full" style={{ maxHeight: 110 }}>
+      <polyline
+        points={pts.map((w, i) => `${xFor(i)},${yFor(w.weight_lb)}`).join(' ')}
+        fill="none"
+        stroke="#f0506e"
+        strokeWidth={2}
+      />
+      {pts.map((w, i) => (
+        <circle key={w.log_date} cx={xFor(i)} cy={yFor(w.weight_lb)} r={3} fill="#f0506e" />
+      ))}
+    </svg>
+  )
+}
 
 export default function DemoPage() {
-  // The demo "attempt" starts the moment this page loads. Nothing is persisted.
-  const [startedAt] = useState(() => new Date())
+  const [snap, setSnap] = useState<DemoPayload | null>(null)
+  const [publishedAt, setPublishedAt] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [now, setNow] = useState(() => new Date())
-  const [toggles, setToggles] = useState<Record<string, { committed: boolean; held: boolean }>>({})
   const [waveSecondsLeft, setWaveSecondsLeft] = useState<number | null>(null)
   const [waveDoneMsg, setWaveDoneMsg] = useState(false)
   const [wavesRidden, setWavesRidden] = useState(0)
@@ -49,23 +120,23 @@ export default function DemoPage() {
     }
   }, [])
 
-  const elapsedMs = Math.max(0, now.getTime() - startedAt.getTime())
-  const elapsedSeconds = elapsedMs / 1000
-  const fullDays = Math.floor(elapsedMs / 86400000)
-  const saved = (elapsedSeconds * SAVINGS_PER_DAY) / WAKING_SECONDS_PER_DAY
-  const journey = getJourneyState(startedAt, now)
-  const upcoming = MILESTONES[journey.currentIndex]
-  const allComplete = journey.currentIndex >= MILESTONES.length
-
-  const nutrition = DEMO_PROTOCOLS.filter((p) => p.pillar === 'nutrition')
-  const movement = DEMO_PROTOCOLS.filter((p) => p.pillar === 'movement')
-
-  function toggle(p: DemoProtocol, key: 'committed' | 'held') {
-    setToggles((prev) => {
-      const current = prev[p.id] ?? { committed: false, held: false }
-      return { ...prev, [p.id]: { ...current, [key]: !current[key] } }
-    })
-  }
+  useEffect(() => {
+    const load = async () => {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('demo_snapshot')
+        .select('payload, updated_at')
+        .eq('user_id', FEATURED_USER_ID)
+        .limit(1)
+      const row = (data as { payload: DemoPayload; updated_at: string }[] | null)?.[0]
+      if (row) {
+        setSnap(row.payload)
+        setPublishedAt(row.updated_at)
+      }
+      setLoaded(true)
+    }
+    load()
+  }, [])
 
   function startWave() {
     if (waveTimerRef.current) clearInterval(waveTimerRef.current)
@@ -96,28 +167,82 @@ export default function DemoPage() {
 
   const waveRunning = waveSecondsLeft !== null
 
-  const renderItem = (p: DemoProtocol) => {
-    const state = toggles[p.id] ?? { committed: false, held: false }
+  if (!loaded) {
     return (
-      <div key={p.id} className="card">
-        <div className="font-bold">{p.label}</div>
-        <p className="text-sm mt-1" style={{ color: '#9aa0ae' }}>{p.detail}</p>
-        <div className="grid grid-cols-2 gap-2 mt-3">
-          <button
-            type="button"
-            onClick={() => toggle(p, 'committed')}
-            className={state.committed ? 'btn-primary' : 'btn-ghost'}
-          >
-            Committed
-          </button>
-          <button
-            type="button"
-            onClick={() => toggle(p, 'held')}
-            className={state.held ? 'btn-primary' : 'btn-ghost'}
-          >
-            Held
-          </button>
+      <div className="max-w-md mx-auto px-4 py-8">
+        <p className="text-sm" style={{ color: '#9aa0ae' }}>Loading the demo…</p>
+      </div>
+    )
+  }
+
+  if (!snap) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-8 space-y-4">
+        <div className="card text-center">
+          <p className="font-semibold">The live demo hasn&apos;t been published yet.</p>
+          <p className="text-sm mt-2" style={{ color: '#9aa0ae' }}>
+            Check back soon, or start your own day 1 now.
+          </p>
+          <Link href="/signup" className="btn-primary w-full block text-center mt-4">
+            Start my real day 1
+          </Link>
         </div>
+      </div>
+    )
+  }
+
+  const startedAt = new Date(snap.journey_start + 'T12:00:00')
+  const elapsedMs = Math.max(0, now.getTime() - startedAt.getTime())
+  const elapsedSeconds = elapsedMs / 1000
+  const fullDays = Math.floor(elapsedMs / 86400000)
+  const saved = (elapsedSeconds * SAVINGS_PER_DAY) / WAKING_SECONDS_PER_DAY
+  const journey = getJourneyState(startedAt, now)
+  const upcoming = MILESTONES[journey.currentIndex]
+  const allComplete = journey.currentIndex >= MILESTONES.length
+
+  const nutrition = toCards(snap.routines.filter((r) => r.pillar === 'nutrition'))
+  const movement = toCards(snap.routines.filter((r) => r.pillar === 'movement'))
+  const mind = toCards(snap.routines.filter((r) => r.pillar === 'mind'))
+  const exp = snap.experiment
+  const latestWeight = snap.weights[snap.weights.length - 1] ?? null
+
+  const renderCard = (card: DemoCard) => {
+    const rows = card.rows
+    const split = rows.length > 1
+    const committedOn = rows.every((r) => r.committed)
+    return (
+      <div key={card.key} className="card">
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => ({ ...e, [card.key]: !e[card.key] }))}
+          className="w-full text-left flex items-start justify-between gap-2"
+          style={{ background: 'none' }}
+        >
+          <span className="font-bold">
+            {card.title}
+            {rows.some((r) => r.is_experimental) && (
+              <span className="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style={{ background: '#2a2d36', color: '#9aa0ae' }}>
+                Experimental
+              </span>
+            )}
+          </span>
+          <span style={{ color: '#9aa0ae' }}>{expanded[card.key] ? '▾' : '▸'}</span>
+        </button>
+        {expanded[card.key] && (
+          <p className="text-sm mt-1" style={{ color: '#9aa0ae' }}>{card.detail}</p>
+        )}
+        <div className="flex gap-2 mt-3 flex-wrap">
+          {statePill(committedOn, 'Committed')}
+          {rows.map((r) => {
+            const label = r.held_at ? `Ended ${fmtTime(r.held_at)}` : shortHalfName(r.label)
+            return <span key={r.id}>{statePill(r.held, split ? label : 'Held')}</span>
+          })}
+        </div>
+        {!split && (
+          <p className="text-xs tabular-nums mt-2" style={{ color: '#9aa0ae' }}>
+            Held {rows[0].held14}/{rows[0].days14} days · Committed {rows[0].committed14}/{rows[0].days14} mornings
+          </p>
+        )}
       </div>
     )
   }
@@ -129,7 +254,9 @@ export default function DemoPage() {
         <div className="px-4 py-3 flex items-center justify-between gap-3">
           <p className="text-sm">
             <span className="font-semibold">Demo mode.</span>{' '}
-            <span className="text-[#9aa0ae]">Nothing here is saved.</span>
+            <span className="text-[#9aa0ae]">
+              Max&apos;s real protocol, published {publishedAt ? fmtPub(publishedAt) : 'recently'}. Nothing here is saved.
+            </span>
           </p>
           <Link href="/signup" className="btn-primary whitespace-nowrap !py-2 !px-4 text-sm">
             Start my real day 1
@@ -139,7 +266,7 @@ export default function DemoPage() {
 
       <main className="px-4 pt-4 space-y-4">
         <p className="text-xs text-[#9aa0ae] text-center">
-          Sample data shown for illustration. Your real account starts fresh.
+          A frozen copy of the builder&apos;s own account. He publishes it himself, when he feels like it.
         </p>
 
         {/* Counter card */}
@@ -147,12 +274,10 @@ export default function DemoPage() {
           <p className="text-6xl font-bold tabular-nums">{fullDays}</p>
           <p className="text-[#9aa0ae] text-sm mt-1">clean days</p>
           <p className="text-2xl font-semibold tabular-nums mt-3">{formatHMS(elapsedMs)}</p>
-          <p className="text-[#9aa0ae] text-xs mt-1">
-            since you opened this demo
-          </p>
+          <p className="text-[#9aa0ae] text-xs mt-1">since his day 1 · live</p>
         </section>
 
-        {/* Milestone card, directly under the counter */}
+        {/* Milestone card */}
         <section className="card">
           {allComplete ? (
             <p className="font-semibold">All 12 milestones complete.</p>
@@ -182,30 +307,79 @@ export default function DemoPage() {
         <section className="space-y-3">
           <h2 className="text-base font-bold">Today&apos;s protocol</h2>
           <p className="text-sm" style={{ color: '#9aa0ae' }}>
-            Committed is the promise you make each morning. Held is what you
-            record each night. Try the toggles. They only live in this demo.
+            His actual check-ins, as published {publishedAt ? fmtPub(publishedAt) : ''}. Read-only.
           </p>
+          {mind.length > 0 && (
+            <>
+              <h3 className="text-sm font-bold text-[#9aa0ae] uppercase tracking-wide">Mind</h3>
+              {mind.map(renderCard)}
+            </>
+          )}
           <h3 className="text-sm font-bold text-[#9aa0ae] uppercase tracking-wide">Nutrition</h3>
-          {nutrition.map(renderItem)}
+          {nutrition.map(renderCard)}
           <h3 className="text-sm font-bold text-[#9aa0ae] uppercase tracking-wide pt-2">Movement</h3>
-          {movement.map(renderItem)}
+          {movement.map(renderCard)}
         </section>
 
-        {/* Weight card (sample) */}
-        <section className="card">
-          <h2 className="font-semibold">Weight</h2>
-          <p className="text-[#9aa0ae] text-sm mt-1">Starting weight 218.5 lb</p>
-          <p className="text-2xl font-semibold tabular-nums mt-1">
-            216.2 <span className="text-sm font-normal text-[#9aa0ae]">lb today</span>
-          </p>
-          <p className="text-[#9aa0ae] text-xs mt-2">Sample numbers for the demo.</p>
-        </section>
+        {/* Experiment */}
+        {exp && (
+          <section className="card" style={{ borderColor: '#f0506e' }}>
+            <p className="text-xs font-semibold tracking-wider" style={{ color: '#f0506e' }}>
+              SELF-EXPERIMENT · DAY {exp.day_number} OF {exp.duration_days}
+            </p>
+            <p className="text-xl font-bold mt-1">{exp.title}</p>
+            <p className="mt-2">
+              <span className="inline-block text-xs font-bold tracking-wider" style={{ color: '#f0506e', border: '1px solid #f0506e', borderRadius: 999, padding: '4px 12px' }}>
+                {cap(exp.pillar)}
+              </span>
+            </p>
+            {exp.hypothesis && <p className="mt-2 italic text-sm" style={{ color: '#9aa0ae' }}>{exp.hypothesis}</p>}
+            <div className="mt-4 flex gap-2 flex-wrap">
+              {exp.dots.map((d) => (
+                <span key={d.date} style={{
+                  width: 26, height: 26, borderRadius: '50%',
+                  background: d.held ? '#f0506e' : 'transparent',
+                  border: `1px solid ${d.held ? '#f0506e' : '#4a5160'}`,
+                }} />
+              ))}
+            </div>
+            <p className="mt-2 text-xs" style={{ color: '#9aa0ae' }}>{exp.held_count} of {exp.duration_days} days held</p>
+            {exp.weight_delta_lb != null && (
+              <p className="mt-2 text-2xl font-bold">
+                <span style={{ color: '#f0506e' }}>{exp.weight_delta_lb > 0 ? '+' : ''}{exp.weight_delta_lb.toFixed(1)} lb</span>
+                <span className="text-base font-normal"> vs day 1</span>
+              </p>
+            )}
+            {exp.baseline_labels.length > 0 && (
+              <div className="mt-3">
+                <p className="text-xs font-semibold tracking-wider" style={{ color: '#9aa0ae' }}>
+                  BASELINE – THE CONTROL{exp.baseline_held_pct != null && ` · ${Math.round(exp.baseline_held_pct * 100)}% HELD`}
+                </p>
+                {exp.baseline_labels.map((l) => (
+                  <p key={l} className="text-sm py-1" style={{ borderBottom: '1px solid #2c313d' }}>🔒 {l}</p>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Weight */}
+        {latestWeight && (
+          <section className="card">
+            <h2 className="font-semibold">Weight</h2>
+            <p className="text-2xl font-semibold tabular-nums mt-1">
+              {latestWeight.weight_lb.toFixed(1)} <span className="text-sm font-normal text-[#9aa0ae]">lb · {fmtPub(latestWeight.log_date)}</span>
+            </p>
+            <WeightSparkline weights={snap.weights} />
+            <p className="text-[#9aa0ae] text-xs mt-2">His last 30 weigh-ins, as published.</p>
+          </section>
+        )}
 
         {/* Stat cards */}
         <section className="grid grid-cols-2 gap-3">
           <div className="card">
             <p className="text-lg font-semibold tabular-nums">{formatMoney(saved)}</p>
-            <p className="text-[#9aa0ae] text-xs mt-1">on pace to save &middot; live</p>
+            <p className="text-[#9aa0ae] text-xs mt-1">on pace to save · live</p>
           </div>
           <div className="card">
             <p className="text-lg font-semibold tabular-nums">{wavesRidden}</p>
@@ -244,7 +418,7 @@ export default function DemoPage() {
         {/* Bottom CTA */}
         <section className="card text-center space-y-3">
           <p className="text-[#9aa0ae] text-sm">
-            Liked the feel of it? Your real day 1 starts the moment you sign up.
+            This is the real thing, running on a real person&apos;s real days. Your day 1 starts the moment you sign up.
           </p>
           <Link href="/signup" className="btn-primary w-full block text-center">
             Start my real day 1
