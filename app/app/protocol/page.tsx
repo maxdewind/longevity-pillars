@@ -16,6 +16,8 @@ interface CountState {
   held: number
   committed: number
   days: number
+  start: string
+  isNew: boolean
 }
 
 interface HistoryRow {
@@ -36,6 +38,10 @@ function dayISO(daysAgo: number): string {
   const d = new Date()
   d.setDate(d.getDate() - daysAgo)
   return todayISO(d)
+}
+
+function fmtShort(iso: string): string {
+  return new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 export default function ProtocolPage() {
@@ -109,14 +115,21 @@ export default function ProtocolPage() {
         .limit(1)
       setExperiment(((expRows as Experiment[] | null) ?? [])[0] ?? null)
       const firstDate = (firstRow?.[0]?.log_date as string | undefined) ?? todayISO()
-      const windowDays = Math.min(TRAILING_DAYS, Math.max(1, daysBetween(firstDate, todayISO()) + 1))
+      const today = todayISO()
       const countMap: Record<string, CountState> = {}
       ;((protos as Protocol[] | null) ?? []).forEach((p) => {
-        const pr = (recent ?? []).filter((r) => r.protocol_id === p.id)
+        // Counts start when the routine was added, not at the journey start.
+        const addedOn = (p.created_at ?? '').slice(0, 10)
+        const start = addedOn && addedOn > firstDate ? addedOn : firstDate
+        const pr = ((recent ?? []) as { protocol_id: string; committed: boolean; held: boolean; log_date: string }[]).filter(
+          (r) => r.protocol_id === p.id && r.log_date >= start
+        )
         countMap[p.id] = {
           held: pr.filter((r) => r.held).length,
           committed: pr.filter((r) => r.committed).length,
-          days: windowDays,
+          days: Math.min(TRAILING_DAYS, Math.max(1, daysBetween(start, today) + 1)),
+          start,
+          isNew: start > firstDate,
         }
       })
       setCounts(countMap)
@@ -424,14 +437,17 @@ export default function ProtocolPage() {
             {' · '}Committed {(() => {
               const c0 = counts[rows[0].id]
               return c0 ? `${c0.committed}/${c0.days}` : '–'
-            })()} mornings
+            })()} mornings{(() => {
+              const late = rows.map((r) => counts[r.id]).find((c) => c?.isNew)
+              return late ? ` · s. ${fmtShort(late.start)}` : ''
+            })()}
           </p>
         ) : (
           (() => {
             const c = counts[rows[0].id]
             return c ? (
               <p className="text-xs tabular-nums mt-2" style={{ color: '#9aa0ae' }}>
-                Held {c.held}/{c.days} days · Committed {c.committed}/{c.days} mornings
+                Held {c.held}/{c.days} days · Committed {c.committed}/{c.days} mornings{c.isNew ? ` · s. ${fmtShort(c.start)}` : ''}
               </p>
             ) : null
           })()
