@@ -53,6 +53,7 @@ export default function ProtocolPage() {
   const [loading, setLoading] = useState(true)
   const [confirmClear, setConfirmClear] = useState<Protocol | null>(null)
   const [experiment, setExperiment] = useState<Experiment | null>(null)
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     const load = async () => {
@@ -352,15 +353,25 @@ export default function ProtocolPage() {
         : 0
     return (
       <div key={card.key} className="card">
-        <div className="font-bold">
-          {card.title}
-          {experimental && (
-            <span className="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style={{ background: '#2a2d36', color: '#9aa0ae' }}>
-              Experimental
-            </span>
-          )}
-        </div>
-        <p className="text-sm mt-1" style={{ color: '#9aa0ae' }}>{card.detail}</p>
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => ({ ...e, [card.key]: !e[card.key] }))}
+          className="w-full text-left flex items-start justify-between gap-2"
+          style={{ background: 'none' }}
+        >
+          <span className="font-bold">
+            {card.title}
+            {experimental && (
+              <span className="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style={{ background: '#2a2d36', color: '#9aa0ae' }}>
+                Experimental
+              </span>
+            )}
+          </span>
+          <span style={{ color: '#9aa0ae' }}>{expanded[card.key] ? '▾' : '▸'}</span>
+        </button>
+        {expanded[card.key] && (
+          <p className="text-sm mt-1" style={{ color: '#9aa0ae' }}>{card.detail}</p>
+        )}
         <button
           type="button"
           onClick={() => toggleCardMandatory(card)}
@@ -490,8 +501,18 @@ export default function ProtocolPage() {
         <section className="space-y-3">
           {banners.map((b) => (
             <div key={b.key} className="card">
-              <p className="text-sm font-bold">{b.title}</p>
-              <p className="text-sm mt-1 italic" style={{ color: '#9aa0ae' }}>{b.body}</p>
+              <button
+                type="button"
+                onClick={() => setExpanded((e) => ({ ...e, [b.key]: !e[b.key] }))}
+                className="w-full text-left flex items-start justify-between gap-2"
+                style={{ background: 'none' }}
+              >
+                <span className="text-sm font-bold">{b.title}</span>
+                <span style={{ color: '#9aa0ae' }}>{expanded[b.key] ? '▾' : '▸'}</span>
+              </button>
+              {expanded[b.key] && (
+                <p className="text-sm mt-1 italic" style={{ color: '#9aa0ae' }}>{b.body}</p>
+              )}
             </div>
           ))}
         </section>
