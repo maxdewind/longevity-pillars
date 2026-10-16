@@ -29,6 +29,7 @@ const errMsg = (e: unknown) =>
 
 export default function ExperimentPage() {
   const [exp, setExp] = useState<Experiment | null>(null)
+  const [pillar, setPillar] = useState<string | null>(null)
   const [heldByDay, setHeldByDay] = useState<Record<string, boolean>>({})
   const [weights, setWeights] = useState<WeightLog[]>([])
   const [baselineHeldPct, setBaselineHeldPct] = useState<number | null>(null)
@@ -54,6 +55,12 @@ export default function ExperimentPage() {
       const e = ((rows as Experiment[] | null) ?? [])[0]
       if (!e) { setLoaded(true); return }
       setExp(e)
+      const { data: proto } = await supabase
+        .from('protocols')
+        .select('pillar')
+        .eq('id', e.protocol_id)
+        .single()
+      setPillar(((proto as { pillar: string } | null) ?? null)?.pillar ?? null)
       const today = todayISO()
       const end = today < e.end_date ? today : e.end_date
 
@@ -180,6 +187,13 @@ export default function ExperimentPage() {
       <div className="card mt-4 p-5">
         <p className="text-xs" style={{ color: '#9aa0ae' }}>PRE-REGISTERED PROMISE</p>
         <p className="text-xl font-bold mt-1">{exp.title}</p>
+        {pillar && (
+          <p className="mt-2">
+            <span className="inline-block text-xs font-bold tracking-wider" style={{ color: '#e0607e', border: '1px solid #e0607e', borderRadius: 999, padding: '4px 12px' }}>
+              {pillar.charAt(0).toUpperCase() + pillar.slice(1)}
+            </span>
+          </p>
+        )}
         {exp.hypothesis && <p className="mt-2 italic text-sm" style={{ color: '#9aa0ae' }}>{exp.hypothesis}</p>}
         <div className="mt-4">
           <div className="flex justify-between text-sm">
