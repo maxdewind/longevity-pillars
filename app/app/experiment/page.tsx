@@ -158,10 +158,11 @@ export default function ExperimentPage() {
   const runDelta = anchor && latestInExp ? latestInExp.weight_lb - anchor.weight_lb : null
   const verdictDelta = thisMed != null && lastMed != null ? thisMed - lastMed : null
 
-  const winStart = addDays(exp.start_date, -7)
-  const winDays = diffDays(winStart, exp.end_date) + 1
-  const wMin = Math.min(...weights.map((w) => w.weight_lb), ...(thisMed != null ? [thisMed] : []), ...(lastMed != null ? [lastMed] : []), ...(anchor ? [anchor.weight_lb] : []))
-  const wMax = Math.max(...weights.map((w) => w.weight_lb), ...(thisMed != null ? [thisMed] : []), ...(lastMed != null ? [lastMed] : []), ...(anchor ? [anchor.weight_lb] : []))
+  const winStart = exp.start_date
+  const winDays = exp.duration_days
+  const domainW = inExp.length > 0 ? inExp : weights
+  const wMin = Math.min(...domainW.map((w) => w.weight_lb), ...(thisMed != null ? [thisMed] : []), ...(lastMed != null ? [lastMed] : []), ...(anchor ? [anchor.weight_lb] : []))
+  const wMax = Math.max(...domainW.map((w) => w.weight_lb), ...(thisMed != null ? [thisMed] : []), ...(lastMed != null ? [lastMed] : []), ...(anchor ? [anchor.weight_lb] : []))
   const pad = Math.max((wMax - wMin) * 0.2, 0.5)
   const W = 320, H = 130, P = 12
   const xFor = (iso: string) => P + (diffDays(winStart, iso) / Math.max(winDays - 1, 1)) * (W - 2 * P)
@@ -226,7 +227,7 @@ export default function ExperimentPage() {
         ) : (
           <p className="mt-2 text-sm" style={{ color: '#9aa0ae' }}>Not enough weigh-ins for the week comparison.</p>
         )}
-        {weights.length >= 2 && (
+        {inExp.length >= 2 && (
           <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 w-full" style={{ maxHeight: 150 }}>
             {unlocked && thisMed != null && (
               <line x1={0} x2={W} y1={yFor(thisMed)} y2={yFor(thisMed)} stroke="#e0607e" strokeWidth={1.5} />
@@ -237,12 +238,18 @@ export default function ExperimentPage() {
             {unlocked && lastMed != null && (
               <line x1={0} x2={W} y1={yFor(lastMed)} y2={yFor(lastMed)} stroke="#9aa0ae" strokeWidth={1.5} strokeDasharray="5 4" />
             )}
-            {weights.map((w) => (
+            <polyline
+              points={inExp.map((w) => `${xFor(w.log_date)},${yFor(w.weight_lb)}`).join(' ')}
+              fill="none"
+              stroke="#e0607e"
+              strokeWidth={2}
+            />
+            {inExp.map((w) => (
               <circle key={w.log_date} cx={xFor(w.log_date)} cy={yFor(w.weight_lb)} r={4} fill="#e0607e" />
             ))}
           </svg>
         )}
-        {weights.length >= 2 && (
+        {inExp.length >= 2 && (
           <p className="mt-1 text-xs" style={{ color: '#9aa0ae' }}>
             {!unlocked && anchor ? (
               <><span style={{ color: '#9aa0ae' }}>- -</span> day-1 anchor ({anchor.weight_lb.toFixed(1)} lb)</>
