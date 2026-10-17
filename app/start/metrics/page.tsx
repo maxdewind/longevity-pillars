@@ -43,7 +43,7 @@ export default function StartMetricsPage() {
 
   return (
     <main className="max-w-md mx-auto px-4 pt-8 pb-28">
-      <p className="text-xs text-muted uppercase tracking-wide">Step 3 of 6 · Baseline metrics</p>
+      <p className="text-xs text-muted uppercase tracking-wide">Step 2 of 5 · Baseline metrics</p>
       <h1 className="text-2xl font-bold mt-2 mb-1">Log what you have</h1>
       <p className="text-sm text-muted mb-6">
         Enter your 7-day averages (Apple Health shows these per metric). Leave blank

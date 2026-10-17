@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { fmtSleepHM } from '@/lib/format'
 import { REFERENCE_RANGES, REFERENCE_DISCLAIMER, type MetricKey, type BandChoice, type RefBand } from '@/lib/referenceRanges'
 
 export interface GoalInput {
   metric_key: string
   band: BandChoice
   target_label: string
+  target_value?: number | null
 }
 
 export interface EntryInput {
@@ -87,7 +89,7 @@ export function usePositionData() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setLoading(false); return }
       const [{ data: g }, { data: e }] = await Promise.all([
-        supabase.from('goals').select('metric_key,band,target_label').eq('user_id', user.id),
+        supabase.from('goals').select('metric_key,band,target_label,target_value').eq('user_id', user.id),
         supabase.from('metric_entries').select('metric_key,entry_date,value').eq('user_id', user.id).order('entry_date', { ascending: false }).limit(500),
       ])
       setGoals(((g as GoalInput[] | null) ?? []).filter((x) => REFERENCE_RANGES[x.metric_key as MetricKey]))
@@ -133,6 +135,15 @@ export default function PositionView({ goals, entries, compact = false }: Props)
             {!compact && value != null && g.metric_key === 'weight_lb' && (
               <p className="text-xs text-muted mt-1">
                 7-day median weight. Add your height to see your BMI against the bands below.
+              </p>
+            )}
+            {g.target_value != null && Number.isFinite(Number(g.target_value)) && (
+              <p className="text-xs mt-1">
+                <span className="text-muted">Your target: </span>
+                <span className="font-semibold tabular-nums" style={{ color: '#7ee2a8' }}>
+                  {g.metric_key === 'sleep_hours' ? fmtSleepHM(Number(g.target_value)) : fmt(Number(g.target_value))}
+                  {' '}{def.unit === 'h' ? '' : def.unit}
+                </span>
               </p>
             )}
             {def.soft && (

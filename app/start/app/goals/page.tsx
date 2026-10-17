@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import GoalPicker from '@/components/levels/GoalPicker'
+import GoalSliderForm from '@/components/levels/GoalSliderForm'
 import PositionView, { usePositionData } from '@/components/levels/PositionView'
 
 export default function AppGoalsPage() {
@@ -14,9 +14,9 @@ export default function AppGoalsPage() {
       <div>
         <h1 className="text-xl font-bold mb-1">Change my goals</h1>
         <p className="text-sm text-muted mb-4">
-          Tap a band to pick it, tap again to remove the goal.
+          Tick a metric, then slide the marker to where you would like to be.
         </p>
-        <GoalPicker nextHref="/start/app/goals" nextLabel="Save goals" onSaved={() => { setEditing(false); reload() }} />
+        <GoalSliderForm nextHref="/start/app/goals" nextLabel="Save goals" onSaved={() => { setEditing(false); reload() }} />
       </div>
     )
   }

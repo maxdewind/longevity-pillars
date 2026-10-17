@@ -69,7 +69,7 @@ export default function StartPage() {
 
         <button
           type="button"
-          onClick={() => router.push('/start/focus')}
+          onClick={() => router.push('/start/safety')}
           className="btn-primary w-full mt-8"
         >
           Start experiment

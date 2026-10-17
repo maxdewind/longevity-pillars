@@ -87,7 +87,7 @@ export default function StartBaselinePage() {
 
   return (
     <main className="max-w-md mx-auto px-4 pt-8 pb-28">
-      <p className="text-xs text-muted uppercase tracking-wide">Step 5 of 6 · Your baseline</p>
+      <p className="text-xs text-muted uppercase tracking-wide">Step 4 of 5 · Your baseline</p>
       <h1 className="text-2xl font-bold mt-2 mb-1">Four rules to hold</h1>
       <p className="text-sm text-muted mb-6">
         New levels unlock when this baseline holds at 90% or better over 10 days.
