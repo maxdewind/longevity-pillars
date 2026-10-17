@@ -19,7 +19,8 @@ export default function SiteChrome({ children }: { children: React.ReactNode }) 
     pathname === '/login' ||
     pathname === '/signup' ||
     pathname === '/' ||
-    pathname === '/demo'
+    pathname === '/demo' ||
+    pathname.startsWith('/demo/')
 
   if (hidden) {
     return <main className="max-w-md mx-auto px-4 pt-4 pb-28">{children}</main>

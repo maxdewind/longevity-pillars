@@ -34,12 +34,20 @@ export interface DemoExperimentSnapshot {
   baseline_held_pct: number | null
 }
 
+export interface DemoRecordSnapshot {
+  total_committed: number
+  total_held: number
+  routine_stats: { id: string; label: string; committed: number; held: number; days: number; rate: number }[]
+  heatmap: { log_date: string; held: number }[]
+}
+
 export interface DemoPayload {
   published_at: string
   journey_start: string
   routines: DemoRoutineSnapshot[]
   experiment: DemoExperimentSnapshot | null
   weights: { log_date: string; weight_lb: number }[]
+  record: DemoRecordSnapshot
 }
 
 const diffDays = (a: string, b: string) =>
@@ -217,11 +225,45 @@ export async function buildDemoSnapshot(
     weight_lb: w.weight_lb,
   }))
 
+  // Record tab: all-time per-routine stats + per-day held totals for the heatmap.
+  const { data: allChecks } = await supabase
+    .from('protocol_checks')
+    .select('protocol_id, log_date, committed, held')
+    .eq('user_id', userId)
+  const checkRows = ((allChecks as { protocol_id: string; log_date: string; committed: boolean; held: boolean }[] | null) ?? [])
+  const routineStats = routines.map((r) => {
+    const pr = checkRows.filter((c) => c.protocol_id === r.id)
+    const days = new Set(pr.map((c) => c.log_date)).size
+    const held = pr.filter((c) => c.held).length
+    return {
+      id: r.id,
+      label: r.label,
+      committed: pr.filter((c) => c.committed).length,
+      held,
+      days,
+      rate: days > 0 ? Math.round((held / days) * 100) : 0,
+    }
+  })
+  const heatByDate = new Map<string, number>()
+  checkRows.forEach((c) => {
+    if (c.held) heatByDate.set(c.log_date, (heatByDate.get(c.log_date) ?? 0) + 1)
+    else if (!heatByDate.has(c.log_date)) heatByDate.set(c.log_date, 0)
+  })
+  const heatmap = Array.from(heatByDate.entries())
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+    .map(([log_date, held]) => ({ log_date, held }))
+
   return {
     published_at: new Date().toISOString(),
     journey_start: journeyStart,
     routines,
     experiment,
     weights,
+    record: {
+      total_committed: checkRows.filter((c) => c.committed).length,
+      total_held: checkRows.filter((c) => c.held).length,
+      routine_stats: routineStats,
+      heatmap,
+    },
   }
 }
