@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { todayISO } from '@/lib/format'
+import { todayISO, fmtSleepHM } from '@/lib/format'
 import { REFERENCE_RANGES, METRIC_ORDER } from '@/lib/referenceRanges'
 import MetricEntryForm from '@/components/levels/MetricEntryForm'
 
@@ -61,7 +61,7 @@ export default function AppMetricsPage() {
     <div>
       <h1 className="text-xl font-bold mb-1">Metrics</h1>
       <p className="text-sm text-muted mb-4">
-        Log what you have. Apple Health sync is coming, for now manual entry keeps the
+        Log your 7-day averages. Apple Health sync is coming, for now manual entry keeps the
         instrument consistent.
       </p>
       <MetricEntryForm initialValues={initialValues} onSaved={() => setRefreshKey((k) => k + 1)} />
@@ -79,7 +79,7 @@ export default function AppMetricsPage() {
                 {rows.map((r) => (
                   <li key={`${r.entry_date}-${r.metric_key}`} className="flex justify-between tabular-nums">
                     <span className="text-muted">{fmtDate(r.entry_date)}</span>
-                    <span>{r.value}</span>
+                    <span>{r.metric_key === 'sleep_hours' ? fmtSleepHM(r.value) : r.value}</span>
                   </li>
                 ))}
               </ul>

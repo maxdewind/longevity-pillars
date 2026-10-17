@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { todayISO } from '@/lib/format'
+import { todayISO, fmtSleepHM, parseSleepHM } from '@/lib/format'
 import { REFERENCE_RANGES, METRIC_ORDER, type MetricKey } from '@/lib/referenceRanges'
 
 interface Props {
@@ -13,11 +13,20 @@ interface Props {
 
 const PLACEHOLDERS: Record<MetricKey, string> = {
   weight_lb: 'e.g. 217',
-  sleep_hours: 'e.g. 7.5',
+  sleep_hours: '7:30',
   deep_sleep_min: 'e.g. 65',
   overnight_hr_bpm: 'e.g. 52',
   overnight_hrv_ms: 'e.g. 48',
   vo2max: 'Optional, e.g. 41',
+}
+
+/** Metrics entered as a rolling 7-day average rather than a point in time. */
+const AVG_7D: MetricKey[] = ['weight_lb', 'sleep_hours', 'deep_sleep_min', 'overnight_hr_bpm', 'overnight_hrv_ms']
+
+function fieldTag(k: MetricKey): string {
+  if (k === 'vo2max') return 'latest result (optional)'
+  if (AVG_7D.includes(k)) return '7-day average'
+  return REFERENCE_RANGES[k].unit
 }
 
 export default function MetricEntryForm({ initialValues = {}, onSaved }: Props) {
@@ -25,11 +34,14 @@ export default function MetricEntryForm({ initialValues = {}, onSaved }: Props) 
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [ahNote, setAhNote] = useState(false)
 
   useEffect(() => {
     const seed: Record<string, string> = {}
     METRIC_ORDER.forEach((k) => {
-      if (initialValues[k] != null) seed[k] = String(initialValues[k])
+      if (initialValues[k] != null) {
+        seed[k] = k === 'sleep_hours' ? fmtSleepHM(Number(initialValues[k])) : String(initialValues[k])
+      }
     })
     setValues(seed)
   }, [initialValues])
@@ -45,8 +57,14 @@ export default function MetricEntryForm({ initialValues = {}, onSaved }: Props) 
       METRIC_ORDER.forEach((k) => {
         const raw = (values[k] ?? '').trim()
         if (!raw) return
-        const v = Number(raw)
-        if (!Number.isFinite(v) || v <= 0) throw new Error(`"${REFERENCE_RANGES[k].label}" needs a positive number.`)
+        let v: number | null
+        if (k === 'sleep_hours') {
+          v = parseSleepHM(raw)
+          if (v == null) throw new Error('"Sleep" needs hours and minutes like 7:30.')
+        } else {
+          v = Number(raw)
+          if (!Number.isFinite(v) || v <= 0) throw new Error(`"${REFERENCE_RANGES[k].label}" needs a positive number.`)
+        }
         rows.push({ user_id: user.id, entry_date: todayISO(), metric_key: k, value: v, source: 'manual' })
       })
       if (rows.length > 0) {
@@ -65,17 +83,31 @@ export default function MetricEntryForm({ initialValues = {}, onSaved }: Props) 
 
   return (
     <div className="space-y-3">
+      <div>
+        <button
+          type="button"
+          onClick={() => setAhNote(true)}
+          className="btn w-full"
+        >
+          Sync from Apple Health
+        </button>
+        {ahNote && (
+          <p className="text-xs text-muted mt-2">
+            Apple Health sync is coming. For now, enter your numbers manually below.
+          </p>
+        )}
+      </div>
       {METRIC_ORDER.map((k) => {
         const def = REFERENCE_RANGES[k]
         return (
           <div key={k} className="card">
             <label className="flex items-baseline justify-between gap-2">
               <span className="font-semibold">{def.label}</span>
-              <span className="text-xs text-muted">{def.unit}{k === 'vo2max' ? ' (optional)' : ''}</span>
+              <span className="text-xs text-muted">{fieldTag(k)}{k !== 'vo2max' && AVG_7D.includes(k) ? ` · ${def.unit}` : ''}</span>
             </label>
             <input
-              type="number"
-              inputMode="decimal"
+              type={k === 'sleep_hours' ? 'text' : 'number'}
+              inputMode={k === 'sleep_hours' ? 'numeric' : 'decimal'}
               step="any"
               min="0"
               placeholder={PLACEHOLDERS[k]}
@@ -95,7 +127,7 @@ export default function MetricEntryForm({ initialValues = {}, onSaved }: Props) 
         className="btn-primary w-full"
         style={{ opacity: saving ? 0.5 : 1 }}
       >
-        {saving ? 'Saving…' : 'Save today\'s metrics'}
+        {saving ? 'Saving…' : 'Save metrics'}
       </button>
     </div>
   )

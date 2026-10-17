@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { todayISO } from '@/lib/format'
+import { todayISO, parseSleepHM } from '@/lib/format'
 import {
   WINDOW_DAYS, OBSERVED_REQUIRED, BASELINE_DAYS, MIN_BASELINE_DAYS, EXTEND_DAYS,
   addDays, diffDays, errMsg, fmtD, readSignal, suggestVerdict,
@@ -195,8 +195,14 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
 
   const logMetric = async () => {
     if (!exp || !template) return
-    const v = parseFloat(metricValue)
-    if (Number.isNaN(v)) { setSavedMsg('Enter a number.'); return }
+    let v: number | null
+    if (template.primary_metric === 'sleep_hours') {
+      v = parseSleepHM(metricValue)
+      if (v == null) { setSavedMsg('Enter hours and minutes like 7:30.'); return }
+    } else {
+      v = parseFloat(metricValue)
+      if (Number.isNaN(v)) { setSavedMsg('Enter a number.'); return }
+    }
     setActing(true)
     setSavedMsg(null)
     try {
@@ -352,14 +358,14 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
           </>
         ) : (
           <p className="mt-2 text-sm" style={{ color: '#9aa0ae' }}>
-            Log {metricMeta.label.toLowerCase()} daily. The signal reads against your 7-day pre-level median once data lands.
+            Log your 7-day average {metricMeta.label.toLowerCase()} daily. The signal reads against your 7-day pre-level median once data lands.
           </p>
         )}
         <div className="mt-3 flex gap-2">
           <input
             value={metricValue}
             onChange={(e) => setMetricValue(e.target.value)}
-            placeholder={`Today's ${metricMeta.label.toLowerCase()} (${metricMeta.unit})`}
+            placeholder={template.primary_metric === 'sleep_hours' ? '7-day average sleep (7:30)' : `7-day average ${metricMeta.label.toLowerCase()} (${metricMeta.unit})`}
             inputMode="decimal"
             className="card flex-1 p-3"
             style={{ background: '#22262f', border: '1px solid #2c313d', color: '#fff', outline: 'none' }}

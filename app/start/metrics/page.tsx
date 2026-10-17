@@ -46,8 +46,8 @@ export default function StartMetricsPage() {
       <p className="text-xs text-muted uppercase tracking-wide">Step 3 of 6 · Baseline metrics</p>
       <h1 className="text-2xl font-bold mt-2 mb-1">Log what you have</h1>
       <p className="text-sm text-muted mb-6">
-        Apple Health sync is coming. For now manual entry keeps the instrument consistent.
-        Leave blank anything you do not track yet.
+        Enter your 7-day averages (Apple Health shows these per metric). Leave blank
+        anything you do not track yet.
       </p>
       <MetricEntryForm initialValues={initialValues} />
       <Link href="/start/goals" className="btn-primary w-full mt-6 block text-center">

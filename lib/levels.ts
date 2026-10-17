@@ -1,4 +1,4 @@
-import { todayISO } from '@/lib/format'
+import { todayISO, fmtSleepHM } from '@/lib/format'
 
 // Shared logic for the Levels module (/start/app/levels).
 // All rules below come from the approved design; keep them in sync with the
@@ -51,7 +51,7 @@ export interface LevelsExperiment {
 
 export const METRIC_LABELS: Record<MetricKey, { label: string; unit: string; fmt: (v: number) => string }> = {
   weight_lb: { label: 'Weight', unit: 'lb', fmt: (v) => `${v.toFixed(1)} lb` },
-  sleep_hours: { label: 'Sleep', unit: 'hours', fmt: (v) => `${v.toFixed(1)} h` },
+  sleep_hours: { label: 'Sleep', unit: 'hours', fmt: (v) => fmtSleepHM(v) },
   deep_sleep_min: { label: 'Deep sleep', unit: 'minutes', fmt: (v) => `${Math.round(v)} min` },
   overnight_hr_bpm: { label: 'Overnight heart rate', unit: 'bpm', fmt: (v) => `${Math.round(v)} bpm` },
   overnight_hrv_ms: { label: 'Overnight HRV', unit: 'ms', fmt: (v) => `${Math.round(v)} ms` },
