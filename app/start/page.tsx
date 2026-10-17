@@ -1,14 +1,6 @@
 'use client'
 
-import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-
-const OPTIONS = [
-  { key: 'weight', label: 'Weight and metabolic health', sub: 'Weight trend and metabolic markers' },
-  { key: 'sleep', label: 'Sleep', sub: 'Hours and deep sleep' },
-  { key: 'heart', label: 'Heart', sub: 'Resting heart rate and HRV' },
-  { key: 'fitness', label: 'Fitness', sub: 'VO2max' },
-]
 
 function ExampleCard({ change, result, verdict, tone }: { change: string; result: string; verdict: string; tone: string }) {
   return (
@@ -22,13 +14,11 @@ function ExampleCard({ change, result, verdict, tone }: { change: string; result
 
 export default function StartPage() {
   const router = useRouter()
-  const [pick, setPick] = useState<string | null>(null)
 
   return (
     <main className="max-w-md mx-auto px-4 pt-8 pb-28">
-      {/* Hero: Option B, the experiment card, with worked examples. */}
-      <section className="mb-10">
-        <p className="text-xs text-muted uppercase tracking-wide">Longevity Pillars</p>
+      <section>
+        <p className="text-xs text-muted uppercase tracking-wide">How it works?</p>
         <h1 className="text-3xl font-bold mt-2">One experiment at a time.</h1>
         <p className="text-sm text-muted mt-2">
           Pre-register a single change, measure it against your own baseline, let the data decide.
@@ -76,36 +66,15 @@ export default function StartPage() {
             tone="#e8c468"
           />
         </div>
-      </section>
 
-      <p className="text-xs text-muted uppercase tracking-wide">Step 1 of 6 · Intake</p>
-      <h2 className="text-2xl font-bold mt-2 mb-1">Where do you want to start?</h2>
-      <p className="text-sm text-muted mb-6">
-        Pick any focus area to begin. The plan is to cover them all eventually,
-        at your pace and discretion. One change, one experiment, one verdict at a time.
-      </p>
-      <div className="space-y-2">
-        {OPTIONS.map((o) => (
-          <button
-            key={o.key}
-            type="button"
-            onClick={() => setPick(o.key)}
-            className={`card w-full text-left ${pick === o.key ? '!border-accent bg-accent/10' : ''}`}
-          >
-            <p className="font-semibold">{o.label}</p>
-            <p className="text-xs text-muted">{o.sub}</p>
-          </button>
-        ))}
-      </div>
-      <button
-        type="button"
-        disabled={!pick}
-        onClick={() => router.push('/start/safety')}
-        className="btn-primary w-full mt-6"
-        style={{ opacity: pick ? 1 : 0.4 }}
-      >
-        Continue
-      </button>
+        <button
+          type="button"
+          onClick={() => router.push('/start/focus')}
+          className="btn-primary w-full mt-8"
+        >
+          Start experiment
+        </button>
+      </section>
     </main>
   )
 }

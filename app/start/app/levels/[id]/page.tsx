@@ -198,7 +198,7 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
     let v: number | null
     if (template.primary_metric === 'sleep_hours') {
       v = parseSleepHM(metricValue)
-      if (v == null) { setSavedMsg('Enter hours and minutes like 7:30.'); return }
+      if (v == null) { setSavedMsg('Enter hours and minutes like 7:30 or 730.'); return }
     } else {
       v = parseFloat(metricValue)
       if (Number.isNaN(v)) { setSavedMsg('Enter a number.'); return }

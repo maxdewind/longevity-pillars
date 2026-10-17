@@ -10,10 +10,28 @@ export function fmtSleepHM(hours: number): string {
   return `${Math.floor(totalMin / 60)}:${pad(totalMin % 60)}`
 }
 
-/** "H:MM" -> decimal hours. Returns null when the text is not valid hours:minutes. */
+/** "H:MM" -> decimal hours. Also accepts plain digits (713 -> 7:13),
+ *  because the iOS numeric keyboard has no colon. Returns null when invalid. */
 export function parseSleepHM(raw: string): number | null {
-  const m = raw.trim().match(/^(\d{1,2}):([0-5]\d)$/)
-  if (!m) return null
-  const v = Number(m[1]) + Number(m[2]) / 60
+  const t = raw.trim()
+  let h: number, min: number
+  const colon = t.match(/^(\d{1,2}):([0-5]\d)$/)
+  if (colon) {
+    h = Number(colon[1])
+    min = Number(colon[2])
+  } else {
+    const digits = t.match(/^(\d{1,4})$/)
+    if (!digits) return null
+    const d = digits[1]
+    if (d.length <= 2) {
+      h = Number(d)
+      min = 0
+    } else {
+      h = Number(d.slice(0, -2))
+      min = Number(d.slice(-2))
+    }
+    if (min > 59) return null
+  }
+  const v = h + min / 60
   return v > 0 && v <= 24 ? v : null
 }

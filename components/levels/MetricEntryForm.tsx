@@ -60,7 +60,7 @@ export default function MetricEntryForm({ initialValues = {}, onSaved }: Props) 
         let v: number | null
         if (k === 'sleep_hours') {
           v = parseSleepHM(raw)
-          if (v == null) throw new Error('"Sleep" needs hours and minutes like 7:30.')
+          if (v == null) throw new Error('"Sleep" needs hours and minutes, like 7:30 or 730.')
         } else {
           v = Number(raw)
           if (!Number.isFinite(v) || v <= 0) throw new Error(`"${REFERENCE_RANGES[k].label}" needs a positive number.`)
@@ -115,6 +115,9 @@ export default function MetricEntryForm({ initialValues = {}, onSaved }: Props) 
               onChange={(e) => setValues((v) => ({ ...v, [k]: e.target.value }))}
               className="mt-2 w-full bg-ink border border-white/10 rounded-lg px-3 py-2 text-white"
             />
+            {k === 'sleep_hours' && (
+              <p className="text-xs text-muted mt-1">Colon or just digits: 7:30 or 730.</p>
+            )}
           </div>
         )
       })}
