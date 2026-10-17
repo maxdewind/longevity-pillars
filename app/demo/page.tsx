@@ -17,6 +17,9 @@ function ProgressBody() {
   const [waveSecondsLeft, setWaveSecondsLeft] = useState<number | null>(null)
   const [waveDoneMsg, setWaveDoneMsg] = useState(false)
   const [wavesRidden, setWavesRidden] = useState(0)
+  const [slipOpen, setSlipOpen] = useState(false)
+  const [slipNote, setSlipNote] = useState('')
+  const [slipMsg, setSlipMsg] = useState<string | null>(null)
   const waveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const waveDoneTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -67,6 +70,8 @@ function ProgressBody() {
   const journey = getJourneyState(startedAt, now)
   const upcoming = MILESTONES[journey.currentIndex]
   const allComplete = journey.currentIndex >= MILESTONES.length
+  const startWeight = snap.weights[0]?.weight_lb ?? null
+  const currentWeight = snap.weights.length > 0 ? snap.weights[snap.weights.length - 1].weight_lb : null
 
   return (
     <div className="space-y-4">
@@ -106,10 +111,34 @@ function ProgressBody() {
         )}
       </section>
 
-      <section className="grid grid-cols-2 gap-3">
+      {/* Weight card */}
+      <section className="card">
+        <h2 className="font-semibold">Weight</h2>
+        {currentWeight !== null && startWeight !== null ? (
+          <>
+            <p className="text-[#9aa0ae] text-sm mt-1">
+              Starting weight {startWeight} lb
+            </p>
+            <p className="text-2xl font-semibold tabular-nums mt-1">
+              {currentWeight} <span className="text-sm font-normal text-[#9aa0ae]">lb</span>
+            </p>
+            <Link href="/demo/weight" className="inline-block mt-3 text-[#f0506e] text-sm font-medium">
+              Weight plan &rarr;
+            </Link>
+          </>
+        ) : (
+          <p className="text-[#9aa0ae] text-sm mt-1">No weigh-ins in this snapshot.</p>
+        )}
+      </section>
+
+      <section className="grid grid-cols-3 gap-3">
         <div className="card">
           <p className="text-lg font-semibold tabular-nums">{formatMoney(saved)}</p>
           <p className="text-[#9aa0ae] text-xs mt-1">on pace to save · live</p>
+        </div>
+        <div className="card">
+          <p className="text-lg font-semibold tabular-nums">{fullDays}</p>
+          <p className="text-[#9aa0ae] text-xs mt-1">total clean days</p>
         </div>
         <div className="card">
           <p className="text-lg font-semibold tabular-nums">{wavesRidden}</p>
@@ -142,6 +171,55 @@ function ProgressBody() {
         {waveDoneMsg && !waveRunning && (
           <p className="font-semibold">Wave ridden. Nice.</p>
         )}
+      </section>
+
+      {/* Slip logging */}
+      <section className="card">
+        {!slipOpen ? (
+          <button
+            type="button"
+            className="btn-ghost w-full"
+            onClick={() => { setSlipOpen(true); setSlipMsg(null) }}
+          >
+            Log a slip
+          </button>
+        ) : (
+          <>
+            <label className="label" htmlFor="slip-note">
+              What happened? (optional)
+            </label>
+            <textarea
+              id="slip-note"
+              className="input w-full min-h-[72px]"
+              placeholder="I ate late after a stressful call..."
+              value={slipNote}
+              onChange={(e) => setSlipNote(e.target.value)}
+            />
+            {slipMsg ? (
+              <p className="text-sm mt-3" style={{ color: '#f0506e' }}>{slipMsg}</p>
+            ) : (
+              <div className="flex gap-2 mt-3">
+                <button
+                  type="button"
+                  className="btn-ghost flex-1"
+                  onClick={() => { setSlipOpen(false); setSlipNote('') }}
+                >
+                  Keep going
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary flex-1"
+                  onClick={() => setSlipMsg('Demo mode — nothing here is saved.')}
+                >
+                  Log slip
+                </button>
+              </div>
+            )}
+          </>
+        )}
+        <p className="text-[#9aa0ae] text-xs mt-3 text-center">
+          A slip restarts the counter, never the story.
+        </p>
       </section>
 
       <section className="card text-center space-y-3">

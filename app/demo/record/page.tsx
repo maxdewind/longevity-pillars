@@ -48,6 +48,15 @@ function RecordBody() {
         His body of evidence, as published{publishedAt ? ` ${fmtPub(publishedAt)}` : ''}. Streaks reset to zero. This doesn&apos;t.
       </p>
 
+      <section className="card">
+        <h2 className="font-semibold mb-1">My resolution</h2>
+        {snap.resolution ? (
+          <p className="text-sm italic">&ldquo;{snap.resolution}&rdquo;</p>
+        ) : (
+          <p className="text-sm" style={{ color: '#9aa0ae' }}>No resolution written yet.</p>
+        )}
+      </section>
+
       <section className="grid grid-cols-2 gap-3">
         <div className="card">
           <p className="text-2xl font-bold tabular-nums">{rec.total_committed}</p>

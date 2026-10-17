@@ -15,6 +15,8 @@ export interface DemoRoutineSnapshot {
   held14: number
   committed14: number
   days14: number
+  weekly_sessions: number | null
+  missed_yesterday: boolean
 }
 
 export interface DemoExperimentSnapshot {
@@ -44,6 +46,8 @@ export interface DemoRecordSnapshot {
 export interface DemoPayload {
   published_at: string
   journey_start: string
+  resolution: string | null
+  banners: { key: string; title: string; body: string }[]
   routines: DemoRoutineSnapshot[]
   experiment: DemoExperimentSnapshot | null
   weights: { log_date: string; weight_lb: number }[]
@@ -111,6 +115,30 @@ export async function buildDemoSnapshot(
     .gte('log_date', todayISO(cutoff))
   const recentRows = ((recent as { protocol_id: string; committed: boolean; held: boolean; log_date: string }[] | null) ?? [])
 
+  const { data: profile } = await supabase.from('profiles').select('resolution').eq('id', userId).single()
+  const resolution = ((profile as { resolution: string | null } | null)?.resolution ?? null) || null
+
+  const dayISO = (daysAgo: number) => {
+    const d = new Date()
+    d.setDate(d.getDate() - daysAgo)
+    return todayISO(d)
+  }
+  // Same tripwire math as the live Protocol tab.
+  const missedOn = (p: Record<string, unknown>, daysAgo: number): boolean => {
+    if (p.cadence === 'weekly') return false
+    const date = dayISO(daysAgo)
+    const row = recentRows.find((r) => r.protocol_id === p.id && r.log_date === date)
+    if (row) return !row.held
+    if (!p.is_mandatory || !p.mandatory_since) return false
+    return date >= (p.mandatory_since as string).slice(0, 10)
+  }
+  const mondayISO = (() => {
+    const d = new Date()
+    const dow = (d.getDay() + 6) % 7 // 0 = Monday
+    d.setDate(d.getDate() - dow)
+    return todayISO(d)
+  })()
+
   const routines: DemoRoutineSnapshot[] = (((protos as Record<string, unknown>[] | null) ?? [])).map((p) => {
     const t = todayMap[p.id as string] ?? { committed: false, held: false, held_at: null }
     const pr = recentRows.filter((r) => r.protocol_id === p.id)
@@ -128,8 +156,37 @@ export async function buildDemoSnapshot(
       held14: pr.filter((r) => r.held).length,
       committed14: pr.filter((r) => r.committed).length,
       days14: 14,
+      weekly_sessions: p.cadence === 'weekly'
+        ? recentRows.filter((r) => r.protocol_id === p.id && r.held && r.log_date >= mondayISO).length
+        : null,
+      missed_yesterday: missedOn(p, 1),
     }
   })
+
+  const banners: { key: string; title: string; body: string }[] = []
+  ;((protos as Record<string, unknown>[] | null) ?? [])
+    .filter((p) => p.is_mandatory)
+    .forEach((p) => {
+      if (missedOn(p, 1) && missedOn(p, 2)) {
+        banners.push({
+          key: `${p.id as string}-consec`,
+          title: `Two missed days in a row on ${p.label as string}.`,
+          body: resolution
+            ? `"${resolution}"`
+            : 'Your resolution lives on the Record page. Go reread it, that is what it is for.',
+        })
+        return
+      }
+      let n = 0
+      for (let off = 1; off <= 7; off++) if (missedOn(p, off)) n++
+      if (n >= 3) {
+        banners.push({
+          key: `${p.id as string}-freq`,
+          title: `You've missed ${n} of the last 7 days on ${p.label as string}.`,
+          body: "What's getting in the way?",
+        })
+      }
+    })
 
   const { data: expRows } = await supabase
     .from('experiments')
@@ -256,6 +313,8 @@ export async function buildDemoSnapshot(
   return {
     published_at: new Date().toISOString(),
     journey_start: journeyStart,
+    resolution,
+    banners,
     routines,
     experiment,
     weights,
