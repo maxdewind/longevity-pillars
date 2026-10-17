@@ -10,27 +10,79 @@ const OPTIONS = [
   { key: 'fitness', label: 'Fitness', sub: 'VO2max' },
 ]
 
+function ExampleCard({ change, result, verdict, tone }: { change: string; result: string; verdict: string; tone: string }) {
+  return (
+    <div className="card p-3">
+      <p className="font-semibold text-sm">{change}</p>
+      <p className="text-xs text-muted mt-1">{result}</p>
+      <p className="text-xs font-semibold mt-2" style={{ color: tone }}>Verdict: {verdict}</p>
+    </div>
+  )
+}
+
 export default function StartPage() {
   const router = useRouter()
   const [pick, setPick] = useState<string | null>(null)
 
   return (
     <main className="max-w-md mx-auto px-4 pt-8 pb-28">
-      <p className="text-xs text-muted uppercase tracking-wide">Step 1 of 6 · Intake</p>
-
-      {/* Placeholder hero: final explainer direction pending the owner's pick of drafted options. */}
-      <div className="card mt-4 mb-6" style={{ borderStyle: 'dashed' }}>
-        <p className="text-xs uppercase tracking-wide text-muted">How it works</p>
-        <p className="text-sm mt-1 text-muted">
-          A short explainer with a visual goes here. Draft options are under review.
+      {/* Hero: Option B, the experiment card, with worked examples. */}
+      <section className="mb-10">
+        <p className="text-xs text-muted uppercase tracking-wide">Longevity Pillars</p>
+        <h1 className="text-3xl font-bold mt-2">One experiment at a time.</h1>
+        <p className="text-sm text-muted mt-2">
+          Pre-register a single change, measure it against your own baseline, let the data decide.
         </p>
-      </div>
 
-      <h1 className="text-2xl font-bold mt-2 mb-1">Where do you want to start?</h1>
+        <div className="grid grid-cols-3 gap-2 mt-6">
+          <div className="card text-center p-3">
+            <p className="font-semibold text-sm">The change</p>
+            <p className="text-xs text-muted mt-1">State your hypothesis</p>
+          </div>
+          <div className="card text-center p-3">
+            <p className="font-semibold text-sm">12 days</p>
+            <p className="text-xs text-muted mt-1">Track and measure</p>
+          </div>
+          <div className="card text-center p-3">
+            <p className="font-semibold text-sm">Verdict</p>
+            <p className="text-xs text-muted mt-1">Keep, extend, or drop</p>
+          </div>
+        </div>
+
+        <p className="text-sm mt-6">
+          Generic advice goes in. Personal proof comes out. Every experiment answers one
+          question: does this specific change actually move the needle for me? People are
+          different, so we test on the only person who matters here: you.
+        </p>
+
+        <p className="text-xs uppercase tracking-wide text-muted mt-6 mb-2">How a verdict looks</p>
+        <div className="space-y-2">
+          <ExampleCard
+            change="No foods with added sugar"
+            result="12 days. Weight down 3.5 lb."
+            verdict="Keep"
+            tone="#7ee2a8"
+          />
+          <ExampleCard
+            change="No food 3 hours before bed"
+            result="12 days. Deep sleep up 11 minutes a night."
+            verdict="Keep"
+            tone="#7ee2a8"
+          />
+          <ExampleCard
+            change="Going gluten-free"
+            result="12 days, but only 5 of 10 days held. No clean read."
+            verdict="Extend 5 days"
+            tone="#e8c468"
+          />
+        </div>
+      </section>
+
+      <p className="text-xs text-muted uppercase tracking-wide">Step 1 of 6 · Intake</p>
+      <h2 className="text-2xl font-bold mt-2 mb-1">Where do you want to start?</h2>
       <p className="text-sm text-muted mb-6">
-        Longevity Pillars runs one experiment at a time: a single change, tested for 12 days
-        against your own baseline, with a verdict at the end. Pick any focus area to begin.
-        The plan is to cover them all eventually, at your pace and discretion.
+        Pick any focus area to begin. The plan is to cover them all eventually,
+        at your pace and discretion. One change, one experiment, one verdict at a time.
       </p>
       <div className="space-y-2">
         {OPTIONS.map((o) => (
