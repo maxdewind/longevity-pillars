@@ -160,7 +160,7 @@ export default function GoalSliderForm({ nextHref, nextLabel, onSaved }: Props) 
         const cur = current[k]
         const isOn = !!enabled[k]
         const target = targets[k] ?? cur ?? cfg.min
-        const pct = (v: number) => `${Math.min(100, Math.max(0, ((v - cfg.min) / (cfg.max - cfg.min)) * 100)))}%`
+        const pct = (v: number) => `${Math.min(100, Math.max(0, ((v - cfg.min) / (cfg.max - cfg.min)) * 100))}%`
         const caption = isOn ? bandCaption(k, target) : null
         return (
           <div key={k} className="card">
