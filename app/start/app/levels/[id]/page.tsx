@@ -113,13 +113,10 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
           ? Object.values(heldMap).filter(Boolean).length / elapsed
           : null
 
-        // Baseline stability: trailing 10 days across track='levels' baseline routines.
-        const { data: allExps } = await supabase
-          .from('experiments')
-          .select('protocol_id')
-          .eq('user_id', user.id)
-          .eq('mode', 'levels')
-        const expPids = new Set(((allExps as { protocol_id: string }[] | null) ?? []).map((r) => r.protocol_id))
+        // Baseline stability: trailing 10 days across enabled track='levels'
+        // protocols, excluding only this run's own row. Kept levels count
+        // toward the baseline once adopted.
+        const expPids = new Set([e.protocol_id])
         const { data: protos } = await supabase
           .from('protocols')
           .select('id, created_at')

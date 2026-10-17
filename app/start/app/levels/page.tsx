@@ -65,8 +65,9 @@ export default function LevelsPage() {
         setActiveExp(all.find((e) => e.status === 'active') ?? null)
         setDone(all.filter((e) => e.status === 'done').map((e) => ({ template_level: e.template_level, verdict: e.verdict })))
 
-        // Baseline routines: track='levels' protocols not owned by a level experiment.
-        const expProtocolIds = new Set(all.map((e) => e.protocol_id))
+        // Baseline routines: enabled track='levels' protocols, excluding only the
+        // active level's own row. A kept level joins the baseline once adopted.
+        const expProtocolIds = new Set(all.filter((e) => e.status === 'active').map((e) => e.protocol_id))
         const { data: protos, error: pErr } = await supabase
           .from('protocols')
           .select('id, created_at')
