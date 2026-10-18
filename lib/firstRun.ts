@@ -97,3 +97,52 @@ export function hypothesisFor(
   const { amt, unit } = amountFor(t.primary_metric, t.threshold_value)
   return `${title} will ${verb} ${METRIC_MINE[t.primary_metric]} by ${amt}+${unit ? ` ${unit}` : ''}.`
 }
+
+/** "overnight heart rate, down 2+ bpm" — the value half of the Primary line. */
+export function primaryPhrase(t: {
+  primary_metric: MetricKey
+  threshold_value: number | null
+  threshold_direction: string
+}): string {
+  return testsLine(t).replace(/^Tests: /, '')
+}
+
+export type EvidenceWord = 'Strong' | 'Moderate' | 'Early'
+
+/** A -> Strong, B -> Moderate, C -> Early. */
+export function evidenceWord(tier: string): EvidenceWord {
+  if (tier === 'A') return 'Strong'
+  if (tier === 'B') return 'Moderate'
+  return 'Early'
+}
+
+/** Number of filled dots for the evidence pill. */
+export function evidenceDots(tier: string): number {
+  if (tier === 'A') return 3
+  if (tier === 'B') return 2
+  return 1
+}
+
+export const EVIDENCE_DESCRIPTIONS: Record<EvidenceWord, string> = {
+  Strong: 'Multiple large human trials agree. This is the best-supported tier.',
+  Moderate:
+    "Some human studies point the same way, but they're smaller, shorter or mixed in quality.",
+  Early: 'Early or mixed evidence: small studies, expert opinion, or promising but unproven.',
+}
+
+export const EVIDENCE_DISCLAIMER =
+  'Evidence shows how likely this works for people in general. Your verdict shows whether it works for you.'
+
+const METRIC_WATCH_LABEL: Record<MetricKey, string> = {
+  weight_lb: 'weight',
+  sleep_hours: 'sleep',
+  deep_sleep_min: 'deep sleep',
+  overnight_hr_bpm: 'overnight heart rate',
+  overnight_hrv_ms: 'HRV',
+  vo2max: 'VO2max',
+}
+
+/** Short display label for the "Also watching" line. */
+export function watchLabel(metricKey: string): string {
+  return METRIC_WATCH_LABEL[metricKey as MetricKey] ?? metricKey
+}

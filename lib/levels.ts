@@ -31,6 +31,9 @@ export interface ExperimentTemplate {
   contraindications: string[] | null
   verdict_driver: boolean
   pillars: string[] | null
+  secondary_metrics: string[] | null
+  evidence_note: string | null
+  sources_url: string | null
 }
 
 export interface LevelsExperiment {

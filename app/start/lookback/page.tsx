@@ -4,13 +4,12 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { addDays, errMsg } from '@/lib/levels'
+import { addDays } from '@/lib/levels'
 import { todayISO } from '@/lib/format'
 import {
   DEFAULT_LOOKBACK_DAYS, LOOKBACK_OPTIONS, fetchProfileExtras,
 } from '@/lib/baseline'
-import { METRIC_ORDER, REFERENCE_RANGES, type MetricKey } from '@/lib/referenceRanges'
-import { SHEET_ID, fetchSheetRows } from '@/lib/sheetSync'
+import { type MetricKey } from '@/lib/referenceRanges'
 
 const EXPLAINERS: Record<number, string> = {
   14: '14 days is the most current: two fresh weeks, but noisier.',
@@ -19,7 +18,16 @@ const EXPLAINERS: Record<number, string> = {
   90: '90 days is the steadiest read, but old habits weigh in.',
 }
 
-const COVERAGE_LABEL: Record<MetricKey, string> = {
+const ROW_ORDER: MetricKey[] = [
+  'weight_lb',
+  'sleep_hours',
+  'overnight_hr_bpm',
+  'overnight_hrv_ms',
+  'deep_sleep_min',
+  'vo2max',
+]
+
+const ROW_LABEL: Record<MetricKey, string> = {
   weight_lb: 'Weight',
   sleep_hours: 'Sleep',
   deep_sleep_min: 'Deep sleep',
@@ -28,15 +36,14 @@ const COVERAGE_LABEL: Record<MetricKey, string> = {
   vo2max: 'VO2max',
 }
 
-const COVERAGE_ORDER: MetricKey[] = [
-  'weight_lb',
-  'sleep_hours',
-  'deep_sleep_min',
-  'overnight_hr_bpm',
-  'overnight_hrv_ms',
-]
-
 interface Entry { entry_date: string; metric_key: string }
+
+function completenessWord(found: number): string {
+  if (found >= 6) return 'Complete'
+  if (found >= 4) return 'Mostly complete'
+  if (found >= 2) return 'Partial'
+  return 'Just starting'
+}
 
 export default function StartLookbackPage() {
   const router = useRouter()
@@ -44,8 +51,7 @@ export default function StartLookbackPage() {
   const [lookback, setLookback] = useState<number>(DEFAULT_LOOKBACK_DAYS)
   const [entries, setEntries] = useState<Entry[]>([])
   const [loading, setLoading] = useState(true)
-  const [busy, setBusy] = useState(false)
-  const [note, setNote] = useState<string | null>(null)
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const [showWhy, setShowWhy] = useState(false)
 
   const load = async (lb: number) => {
@@ -101,47 +107,31 @@ export default function StartLookbackPage() {
     await load(lb)
   }
 
-  const coverage = useMemo(() => {
+  const daysByMetric = useMemo(() => {
     const m = new Map<MetricKey, number>()
-    for (const k of COVERAGE_ORDER) {
+    for (const k of ROW_ORDER) {
       m.set(k, new Set(entries.filter((e) => e.metric_key === k).map((e) => e.entry_date)).size)
     }
     return m
   }, [entries])
 
-  const totalDays = entries.length
-
-  const allowAccess = async () => {
-    setNote(null)
-    if (!SHEET_ID) {
-      setNote('Apple Health sync is not connected yet. Enter your numbers manually instead.')
-      return
-    }
-    setBusy(true)
-    try {
-      const rows = await fetchSheetRows(SHEET_ID)
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not signed in.')
-      const payload = rows.map((r) => ({
-        user_id: user.id, entry_date: r.date, metric_key: r.metric_key,
-        value: r.value, source: 'apple_health',
-      }))
-      for (let i = 0; i < payload.length; i += 200) {
-        const { error } = await supabase.from('metric_entries').upsert(
-          payload.slice(i, i + 200),
-          { onConflict: 'user_id,entry_date,metric_key,source' },
+  // About 20 of 28 days, scaled to the chosen lookback.
+  const required = Math.max(1, Math.round((lookback * 20) / 28))
+  const found = ROW_ORDER.filter((k) => (daysByMetric.get(k) ?? 0) > 0).length
+  const warnings = useMemo(() => {
+    const w: string[] = []
+    for (const k of ROW_ORDER) {
+      const n = daysByMetric.get(k) ?? 0
+      if (n === 0) {
+        w.push(`No ${ROW_LABEL[k]} found. Experiments that need it are skipped.`)
+      } else if (n < required) {
+        w.push(
+          `${ROW_LABEL[k]} has gaps (${n} of ${lookback} days). We'll show it for context, not as a verdict metric.`,
         )
-        if (error) throw error
       }
-      await load(lookback)
-      router.push('/start/normal')
-    } catch (e) {
-      setNote(totalDays > 0 ? null : errMsg(e))
-      if (totalDays > 0) router.push('/start/normal')
     }
-    setBusy(false)
-  }
+    return w
+  }, [daysByMetric, required, lookback])
 
   if (signedIn === false) {
     return (
@@ -177,36 +167,71 @@ export default function StartLookbackPage() {
       </div>
       <p className="text-sm text-muted mt-3">{EXPLAINERS[lookback] ?? ''}</p>
 
-      <div className="card mt-6 space-y-2.5">
-        {loading ? (
-          <p className="text-muted text-sm">Checking your history…</p>
-        ) : (
-          COVERAGE_ORDER.map((k) => (
-            <div key={k} className="flex items-baseline justify-between">
-              <p>{COVERAGE_LABEL[k]}</p>
-              <p className="font-semibold tabular-nums" style={{ color: '#7ee2a8' }}>
-                {coverage.get(k) ?? 0} of {lookback} days
-              </p>
-            </div>
-          ))
+      <div className="card mt-6">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="font-semibold text-lg">
+              {loading ? 'Checking your history…' : `Found ${found} of 6 metrics`}
+            </p>
+            {!loading && <p className="text-sm text-muted">{completenessWord(found)}</p>}
+          </div>
+          {!loading && (
+            <button
+              type="button"
+              onClick={() => setDetailsOpen((v) => !v)}
+              className="text-accent font-semibold shrink-0"
+            >
+              {detailsOpen ? 'Hide' : 'Details'}
+            </button>
+          )}
+        </div>
+
+        {detailsOpen && !loading && (
+          <div className="mt-4 space-y-2.5">
+            {ROW_ORDER.map((k) => {
+              const n = daysByMetric.get(k) ?? 0
+              const ok = n >= required
+              return (
+                <div key={k} className="flex items-baseline justify-between">
+                  <p>{ROW_LABEL[k]}</p>
+                  {n === 0 ? (
+                    <p className="font-semibold" style={{ color: '#e8c468' }}>Not found</p>
+                  ) : (
+                    <p
+                      className="font-semibold tabular-nums"
+                      style={{ color: ok ? '#7ee2a8' : '#e8c468' }}
+                    >
+                      {n} of {lookback} days
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+            <p className="text-sm text-muted pt-1">
+              We need about {required} of {lookback} days to use a metric as your measure.
+            </p>
+          </div>
+        )}
+
+        {!loading && warnings.length > 0 && (
+          <div className={`space-y-3 ${detailsOpen ? 'mt-4' : 'mt-4'}`}>
+            {warnings.map((w) => (
+              <div key={w} className="flex gap-2.5">
+                <span className="mt-2 w-2 h-2 rounded-full shrink-0" style={{ background: '#e8c468' }} />
+                <p className="text-sm" style={{ color: '#e8c468' }}>{w}</p>
+              </div>
+            ))}
+          </div>
         )}
       </div>
-      {!loading && totalDays === 0 && (
-        <p className="text-xs text-muted mt-3">
-          No history here yet. Allowing access pulls it in, or you can enter numbers manually.
-        </p>
-      )}
 
       <button
         type="button"
-        onClick={allowAccess}
-        disabled={busy}
+        onClick={() => router.push('/start/normal')}
         className="btn-primary w-full mt-8 !py-4 text-lg"
-        style={{ opacity: busy ? 0.6 : 1 }}
       >
-        {busy ? 'Pulling your history…' : 'Allow Health access'}
+        Continue
       </button>
-      {note && <p className="text-sm text-muted mt-3">{note}</p>}
       <p className="text-center mt-4">
         <button
           type="button"
