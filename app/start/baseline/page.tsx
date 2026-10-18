@@ -69,7 +69,7 @@ export default function StartBaselinePage() {
       }))
       const { error } = await supabase.from('protocols').insert(rows)
       if (error) throw error
-      router.push('/start/position')
+      router.push('/start/pillar')
     } catch {
       setStarting(false)
     }
@@ -87,7 +87,7 @@ export default function StartBaselinePage() {
 
   return (
     <main className="max-w-md mx-auto px-4 pt-8 pb-28">
-      <p className="text-xs text-muted uppercase tracking-wide">Step 4 of 5 · Your baseline</p>
+      <p className="text-xs text-muted uppercase tracking-wide">Step 5 of 6 · Daily baseline</p>
       <h1 className="text-2xl font-bold mt-2 mb-1">Four rules to hold</h1>
       <p className="text-sm text-muted mb-6">
         New levels unlock when this baseline holds at 90% or better over 10 days.
@@ -113,8 +113,8 @@ export default function StartBaselinePage() {
             </div>
           ))}
           {alreadyStarted ? (
-            <Link href="/start/app/today" className="btn-primary w-full block text-center mt-4">
-              Your baseline is set. Enter your app
+            <Link href="/start/pillar" className="btn-primary w-full block text-center mt-4">
+              Continue
             </Link>
           ) : (
             <button

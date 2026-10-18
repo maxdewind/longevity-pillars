@@ -5,11 +5,12 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { todayISO } from '@/lib/format'
 import {
-  WINDOW_DAYS, OBSERVED_REQUIRED, BASELINE_DAYS, MIN_BASELINE_DAYS,
+  WINDOW_DAYS, OBSERVED_REQUIRED, MIN_BASELINE_DAYS,
   addDays, diffDays, errMsg, median, fmtD, lockStateForLevel, safetyConflicts,
   METRIC_LABELS,
   type ExperimentTemplate, type LevelsExperiment,
 } from '@/lib/levels'
+import { fetchBaselineValues, fetchProfileExtras, DEFAULT_LOOKBACK_DAYS } from '@/lib/baseline'
 
 const PILLAR_FOR_METRIC: Record<string, 'nutrition' | 'movement' | 'mind'> = {
   weight_lb: 'nutrition',
@@ -37,6 +38,7 @@ export default function LevelsPage() {
   const [hypothesis, setHypothesis] = useState('')
   const [baselineDays, setBaselineDays] = useState<number | null>(null)
   const [baselineMedian, setBaselineMedian] = useState<number | null>(null)
+  const [lookbackDays, setLookbackDays] = useState<number | null>(null)
   const [safetyAnswers, setSafetyAnswers] = useState<Record<string, boolean> | null>(null)
   const [saving, setSaving] = useState(false)
   const [preErr, setPreErr] = useState<string | null>(null)
@@ -119,10 +121,10 @@ export default function LevelsPage() {
   }, [])
 
   const lockFor = (level: number) => {
-    const prevDone = done.some((d) => d.template_level === level - 1)
-    const prevActive = activeExp != null && activeExp.template_level === level - 1
+    const levelDone = done.some((d) => d.template_level === level)
+    const anyActive = activeExp != null
     return lockStateForLevel({
-      level, hasBaselineRoutines, prevLevelDone: prevDone, prevLevelActive: prevActive,
+      level, hasBaselineRoutines, anyActive, levelDone,
       stabilityPct, gatePct,
     })
   }
@@ -138,17 +140,12 @@ export default function LevelsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       const today = todayISO()
-      const { data: entries } = await supabase
-        .from('metric_entries')
-        .select('entry_date, value')
-        .eq('user_id', user.id)
-        .eq('metric_key', t.primary_metric)
-        .gte('entry_date', addDays(today, -BASELINE_DAYS))
-        .lt('entry_date', today)
-        .order('entry_date')
-      const vals = ((entries as { entry_date: string; value: number }[] | null) ?? []).map((e) => Number(e.value))
+      const prof = await fetchProfileExtras(supabase, user.id)
+      const lb = prof.lookback
+      setLookbackDays(lb)
+      const vals = await fetchBaselineValues(supabase, user.id, t.primary_metric, today, lb)
       setBaselineDays(vals.length)
-      setBaselineMedian(median(vals))
+      setBaselineMedian(median(vals.map((v) => v.value)))
       try {
         const { data: scr } = await supabase
           .from('safety_screenings')
@@ -270,7 +267,7 @@ export default function LevelsPage() {
     <main className="p-6 max-w-xl mx-auto pb-28">
       <h1 className="text-2xl font-bold">Levels</h1>
       <p className="mt-1 text-sm" style={{ color: '#9aa0ae' }}>
-        Complete 10 days of a level to unlock the next one. One level at a time.
+        One at a time. Finish a level, then choose your next.
       </p>
       {error && <p className="mt-4 text-sm" style={{ color: '#e0607e' }}>{error}</p>}
 
@@ -353,12 +350,12 @@ export default function LevelsPage() {
             )}
           </div>
 
-          <p className="mt-4 text-xs font-semibold tracking-wider" style={{ color: '#9aa0ae' }}>BASELINE SNAPSHOT (LAST {BASELINE_DAYS} DAYS)</p>
+          <p className="mt-4 text-xs font-semibold tracking-wider" style={{ color: '#9aa0ae' }}>BASELINE SNAPSHOT (LAST {lookbackDays ?? DEFAULT_LOOKBACK_DAYS} DAYS)</p>
           {baselineDays == null ? (
             <p className="mt-2 text-sm" style={{ color: '#9aa0ae' }}>Loading baseline…</p>
           ) : (
             <p className="mt-2 text-sm" style={{ color: baselineDays < MIN_BASELINE_DAYS ? '#e0607e' : '#9aa0ae' }}>
-              {baselineDays} of {BASELINE_DAYS} days logged
+              {baselineDays} days logged
               {baselineMedian != null && <> · median {METRIC_LABELS[selected.primary_metric]?.fmt(baselineMedian)}</>}
               {baselineDays < MIN_BASELINE_DAYS && '. The verdict will be capped at inconclusive with a weak baseline.'}
             </p>

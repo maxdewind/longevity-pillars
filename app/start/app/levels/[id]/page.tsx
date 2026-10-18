@@ -5,11 +5,12 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { todayISO, parseSleepHM } from '@/lib/format'
 import {
-  WINDOW_DAYS, OBSERVED_REQUIRED, BASELINE_DAYS, MIN_BASELINE_DAYS, EXTEND_DAYS,
+  WINDOW_DAYS, OBSERVED_REQUIRED, MIN_BASELINE_DAYS, EXTEND_DAYS,
   addDays, diffDays, errMsg, fmtD, readSignal, suggestVerdict,
   METRIC_LABELS,
   type ExperimentTemplate, type LevelsExperiment, type SignalRead, type VerdictKind, type VerdictSuggestion,
 } from '@/lib/levels'
+import { fetchBaselineValues, fetchProfileExtras } from '@/lib/baseline'
 
 const VERDICT_BUTTONS: { kind: VerdictKind; label: string }[] = [
   { kind: 'keep', label: 'Keep it' },
@@ -78,18 +79,23 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
         const req = e.observed_days_required ?? OBSERVED_REQUIRED
         setObservedRequired(req)
 
+        // Baseline: the user's lookback window before start, minus excluded days.
+        const profLb = await fetchProfileExtras(supabase, user.id)
+        const lb = profLb.lookback
+        const baselineDayVals = await fetchBaselineValues(supabase, user.id, metricKey, e.start_date, lb)
+        const baselineVals = baselineDayVals.map((r) => r.value)
+
         const { data: entries } = await supabase
           .from('metric_entries')
           .select('entry_date, value')
           .eq('user_id', user.id)
           .eq('metric_key', metricKey)
-          .gte('entry_date', addDays(e.start_date, -BASELINE_DAYS))
+          .gte('entry_date', e.start_date)
           .lte('entry_date', windowEnd)
           .order('entry_date')
         const all = (entries as { entry_date: string; value: number }[] | null) ?? []
-        const baselineVals = all.filter((r) => r.entry_date < e.start_date).map((r) => Number(r.value))
-        const observedVals = all.filter((r) => r.entry_date >= e.start_date).map((r) => Number(r.value))
-        const observedDates = new Set(all.filter((r) => r.entry_date >= e.start_date).map((r) => r.entry_date))
+        const observedVals = all.map((r) => Number(r.value))
+        const observedDates = new Set(all.map((r) => r.entry_date))
         setObservedDays(observedDates.size)
 
         const sig = readSignal(t.primary_metric, t.threshold_direction, baselineVals, observedVals)

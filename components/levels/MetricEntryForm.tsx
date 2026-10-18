@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { todayISO, fmtSleepHM, parseSleepHM } from '@/lib/format'
+import { errMsg } from '@/lib/levels'
+import { SHEET_ID, fetchSheetRows } from '@/lib/sheetSync'
 import { REFERENCE_RANGES, METRIC_ORDER, type MetricKey } from '@/lib/referenceRanges'
 
 interface Props {
@@ -34,7 +36,8 @@ export default function MetricEntryForm({ initialValues = {}, onSaved }: Props) 
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [ahNote, setAhNote] = useState(false)
+  const [ahNote, setAhNote] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
 
   useEffect(() => {
     const seed: Record<string, string> = {}
@@ -45,6 +48,30 @@ export default function MetricEntryForm({ initialValues = {}, onSaved }: Props) 
     })
     setValues(seed)
   }, [initialValues])
+
+  const syncNow = async () => {
+    if (!SHEET_ID) {
+      setAhNote('Apple Health sync turns on after the one-time setup. For now, enter your numbers manually below.')
+      return
+    }
+    setSyncing(true)
+    try {
+      const rows = await fetchSheetRows(SHEET_ID)
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not signed in.')
+      const payload = rows.map((r) => ({ user_id: user.id, entry_date: r.date, metric_key: r.metric_key, value: r.value, source: 'apple_health' }))
+      for (let i = 0; i < payload.length; i += 200) {
+        const { error } = await supabase.from('metric_entries').upsert(payload.slice(i, i + 200), { onConflict: 'user_id,entry_date,metric_key,source' })
+        if (error) throw error
+      }
+      setAhNote(`Synced ${rows.length} daily readings from Apple Health.`)
+      onSaved?.()
+    } catch (e) {
+      setAhNote(errMsg(e))
+    }
+    setSyncing(false)
+  }
 
   const save = async () => {
     setSaving(true)
@@ -86,14 +113,15 @@ export default function MetricEntryForm({ initialValues = {}, onSaved }: Props) 
       <div>
         <button
           type="button"
-          onClick={() => setAhNote(true)}
+          onClick={syncNow}
+          disabled={syncing}
           className="btn w-full"
         >
-          Sync from Apple Health
+          {syncing ? 'Syncing…' : 'Sync from Apple Health'}
         </button>
         {ahNote && (
           <p className="text-xs text-muted mt-2">
-            Apple Health sync is coming. For now, enter your numbers manually below.
+            {ahNote}
           </p>
         )}
       </div>

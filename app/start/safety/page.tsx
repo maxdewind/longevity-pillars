@@ -43,7 +43,7 @@ export default function SafetyPage() {
 
   return (
     <main className="max-w-md mx-auto px-4 pt-8 pb-28">
-      <p className="text-xs text-muted uppercase tracking-wide">Step 1 of 5 · Safety</p>
+      <p className="text-xs text-muted uppercase tracking-wide">Step 1 of 6 · Safety</p>
       <h1 className="text-2xl font-bold mt-2 mb-1">A quick safety check</h1>
       <p className="text-sm text-muted mb-6">
         Longevity Pillars offers general wellness information, not medical advice. A full

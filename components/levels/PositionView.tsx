@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { fmtSleepHM } from '@/lib/format'
+import { mean, stddev, BAND_BAR, weightBandsLb } from '@/lib/baseline'
+import BandBar from './BandBar'
 import { REFERENCE_RANGES, REFERENCE_DISCLAIMER, type MetricKey, type BandChoice, type RefBand } from '@/lib/referenceRanges'
 
 export interface GoalInput {
@@ -21,6 +23,7 @@ export interface EntryInput {
 interface Props {
   goals: GoalInput[]
   entries: EntryInput[]
+  heightCm?: number | null
   compact?: boolean
 }
 
@@ -80,6 +83,7 @@ function fmt(v: number): string {
 export function usePositionData() {
   const [goals, setGoals] = useState<GoalInput[]>([])
   const [entries, setEntries] = useState<EntryInput[]>([])
+  const [heightCm, setHeightCm] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [reloadKey, setReloadKey] = useState(0)
 
@@ -88,21 +92,49 @@ export function usePositionData() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setLoading(false); return }
-      const [{ data: g }, { data: e }] = await Promise.all([
+      const [{ data: g }, { data: e }, { data: p }] = await Promise.all([
         supabase.from('goals').select('metric_key,band,target_label,target_value').eq('user_id', user.id),
         supabase.from('metric_entries').select('metric_key,entry_date,value').eq('user_id', user.id).order('entry_date', { ascending: false }).limit(500),
+        supabase.from('profiles').select('height_cm').eq('id', user.id).single(),
       ])
       setGoals(((g as GoalInput[] | null) ?? []).filter((x) => REFERENCE_RANGES[x.metric_key as MetricKey]))
       setEntries(((e as EntryInput[] | null) ?? []))
+      const h = (p as { height_cm?: number | null } | null)?.height_cm
+      setHeightCm(typeof h === 'number' ? h : null)
       setLoading(false)
     }
     load()
   }, [reloadKey])
 
-  return { goals, entries, loading, reload: () => { setLoading(true); setReloadKey((k) => k + 1) } }
+  return { goals, entries, heightCm, loading, reload: () => { setLoading(true); setReloadKey((k) => k + 1) } }
 }
 
-export default function PositionView({ goals, entries, compact = false }: Props) {
+/** 7-day mean and SD for the header; VO2max uses the latest point only. */
+function meanSd(key: string, entries: EntryInput[]): { avg: number; sd: number; n: number } | null {
+  const vals = entries
+    .filter((e) => e.metric_key === key)
+    .map((e) => ({ date: e.entry_date, v: Number(e.value) }))
+    .filter((e) => Number.isFinite(e.v))
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+  if (vals.length === 0) return null
+  if (key === 'vo2max') return { avg: vals[0].v, sd: 0, n: 1 }
+  const cutoff = dayCutoff(MEDIAN_DAYS)
+  const recent = vals.filter((e) => e.date >= cutoff).map((e) => e.v)
+  if (recent.length === 0) return null
+  const a = mean(recent)!
+  return { avg: a, sd: stddev(recent, a) ?? 0, n: recent.length }
+}
+
+function fmtAvgSd(key: string, avg: number, sd: number): string {
+  if (key === 'sleep_hours') return `${fmtSleepHM(avg)} ± ${Math.round(sd * 60)} min`
+  if (key === 'weight_lb') return `${avg.toFixed(1)} ± ${sd.toFixed(1)} lb`
+  if (key === 'deep_sleep_min') return `${Math.round(avg)} ± ${Math.round(sd)} min`
+  if (key === 'overnight_hr_bpm') return `${Math.round(avg)} ± ${Math.round(sd)} bpm`
+  if (key === 'overnight_hrv_ms') return `${Math.round(avg)} ± ${Math.round(sd)} ms`
+  return avg.toFixed(1)
+}
+
+export default function PositionView({ goals, entries, heightCm = null, compact = false }: Props) {
   if (goals.length === 0) {
     return (
       <div className="card">
@@ -115,7 +147,11 @@ export default function PositionView({ goals, entries, compact = false }: Props)
       {goals.map((g) => {
         const def = REFERENCE_RANGES[g.metric_key as MetricKey]
         if (!def) return null
-        const value = currentValue(g.metric_key, entries)
+        const ms = meanSd(g.metric_key, entries)
+        const value = ms?.avg ?? null
+        const bar = BAND_BAR[g.metric_key as MetricKey]
+        const wb = g.metric_key === 'weight_lb' && heightCm != null ? weightBandsLb(heightCm) : undefined
+        const targetVal = g.target_value != null && Number.isFinite(Number(g.target_value)) ? Number(g.target_value) : null
         const bands: { key: BandChoice; band: RefBand; chosen: boolean }[] = [
           { key: 'population', band: def.population, chosen: g.band === 'population' },
           { key: 'aspirational', band: def.aspirational, chosen: g.band === 'aspirational' },
@@ -125,13 +161,23 @@ export default function PositionView({ goals, entries, compact = false }: Props)
             <div className="flex items-baseline justify-between gap-2">
               <p className="font-semibold">{def.label}</p>
               <p className="text-sm tabular-nums">
-                {value == null ? (
+                {ms == null ? (
                   <span className="text-muted">No data yet</span>
                 ) : (
-                  <span>{fmt(value)} <span className="text-muted text-xs">{def.unit}</span></span>
+                  <span>{fmtAvgSd(g.metric_key, ms.avg, ms.sd)}</span>
                 )}
               </p>
             </div>
+            {ms != null && (
+              <div className="mt-3">
+                <BandBar
+                  min={bar.min} max={bar.max}
+                  pop={wb?.pop ?? bar.pop} asp={wb?.asp ?? bar.asp}
+                  direction={bar.direction} avg={ms.avg} sd={ms.sd}
+                  target={targetVal} showLegend={!!(wb ?? bar.pop)}
+                />
+              </div>
+            )}
             {!compact && value != null && g.metric_key === 'weight_lb' && (
               <p className="text-xs text-muted mt-1">
                 7-day median weight. Add your height to see your BMI against the bands below.

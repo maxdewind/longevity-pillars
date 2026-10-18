@@ -30,6 +30,7 @@ export interface ExperimentTemplate {
   evidence_tier: 'A' | 'B' | 'C'
   contraindications: string[] | null
   verdict_driver: boolean
+  pillars: string[] | null
 }
 
 export interface LevelsExperiment {
@@ -289,29 +290,28 @@ export interface LockState {
 export function lockStateForLevel(args: {
   level: number
   hasBaselineRoutines: boolean
-  prevLevelDone: boolean
-  prevLevelActive: boolean
+  /** Any levels experiment currently active (one at a time). */
+  anyActive: boolean
+  /** This level already has a recorded verdict. */
+  levelDone: boolean
   stabilityPct: number | null
   gatePct: number
 }): LockState {
-  const { level, hasBaselineRoutines, prevLevelDone, prevLevelActive, stabilityPct, gatePct } = args
+  const { hasBaselineRoutines, anyActive, levelDone, stabilityPct, gatePct } = args
   if (!hasBaselineRoutines) {
-    return { unlocked: false, reason: 'Finish the onboarding baseline to unlock Level 1.' }
+    return { unlocked: false, reason: 'Finish the onboarding baseline to unlock experiments.' }
   }
-  if (level === 1) return { unlocked: true, reason: null }
-  if (!prevLevelDone) {
+  if (levelDone) {
+    return { unlocked: false, reason: 'Completed. Pick another level.' }
+  }
+  if (anyActive) {
+    return { unlocked: false, reason: 'Finish your current run first. One experiment at a time.' }
+  }
+  if (stabilityPct != null && stabilityPct * 100 < gatePct) {
+    const cur = `${Math.round(stabilityPct * 100)}%`
     return {
       unlocked: false,
-      reason: prevLevelActive
-        ? `Finish the Level ${level - 1} run first.`
-        : `Complete Level ${level - 1} to unlock this level.`,
-    }
-  }
-  if (stabilityPct == null || stabilityPct * 100 < gatePct) {
-    const cur = stabilityPct == null ? 'no data' : `${Math.round(stabilityPct * 100)}%`
-    return {
-      unlocked: false,
-      reason: `Baseline unstable: held ${cur} over the last 10 days, needs ${gatePct}%. Hold the baseline, then Level ${level} opens.`,
+      reason: `Baseline unstable: held ${cur} over the last 10 days, needs ${gatePct}%. Hold the baseline, then start.`,
     }
   }
   return { unlocked: true, reason: null }

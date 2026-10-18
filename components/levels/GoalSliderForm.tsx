@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { fmtSleepHM } from '@/lib/format'
+import { bandForTargetValue, weightBandsLb } from '@/lib/baseline'
 import { REFERENCE_RANGES, REFERENCE_DISCLAIMER, METRIC_ORDER, type MetricKey, type BandChoice } from '@/lib/referenceRanges'
 
 interface Props {
@@ -49,12 +50,6 @@ function parseHeightCm(raw: string): number | null {
 }
 
 /** BMI 18.5-24.9 (population) and 20-22 (aspirational) as weight bands in lb. */
-function weightBandsLb(heightCm: number): { pop: [number, number]; asp: [number, number] } {
-  const m = heightCm / 100
-  const toLb = (bmi: number) => bmi * m * m * 2.20462
-  return { pop: [toLb(18.5), toLb(24.9)], asp: [toLb(20), toLb(22)] }
-}
-
 function bmiOf(lb: number, heightCm: number): number {
   const m = heightCm / 100
   return lb / 2.20462 / (m * m)
@@ -65,20 +60,6 @@ function median(nums: number[]): number | null {
   const s = [...nums].sort((a, b) => a - b)
   const mid = Math.floor(s.length / 2)
   return s.length % 2 === 1 ? s[mid] : (s[mid - 1] + s[mid]) / 2
-}
-
-function bandForTarget(k: MetricKey, v: number, heightCm: number | null): BandChoice {
-  if (k === 'weight_lb' && heightCm != null) {
-    const bmi = bmiOf(v, heightCm)
-    return bmi >= 20 && bmi <= 22 ? 'aspirational' : 'population'
-  }
-  switch (k) {
-    case 'sleep_hours': return v >= 8 ? 'aspirational' : 'population'
-    case 'deep_sleep_min': return v >= 90 ? 'aspirational' : 'population'
-    case 'overnight_hr_bpm': return v < 55 ? 'aspirational' : 'population'
-    case 'overnight_hrv_ms': return v > 70 ? 'aspirational' : 'population'
-    default: return 'population'
-  }
 }
 
 function bandCaption(k: MetricKey, v: number, heightCm: number | null): string | null {
@@ -178,7 +159,7 @@ export default function GoalSliderForm({ nextHref, nextLabel, onSaved }: Props) 
         return {
           user_id: user.id,
           metric_key: k,
-          band: bandForTarget(k, v, heightCm),
+          band: bandForTargetValue(k, v, heightCm),
           target_value: v,
           target_label: `${REFERENCE_RANGES[k].label} ${SLIDER[k].fmt(v)}`,
         }
