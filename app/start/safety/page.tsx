@@ -37,13 +37,13 @@ export default function SafetyPage() {
       }
     } finally {
       setSaving(false)
-      router.push('/start/metrics')
+      router.push('/start/lookback')
     }
   }
 
   return (
     <main className="max-w-md mx-auto px-4 pt-8 pb-28">
-      <p className="text-xs text-muted uppercase tracking-wide">Step 1 of 6 · Safety</p>
+      <p className="text-xs text-muted uppercase tracking-widest">Before we begin</p>
       <h1 className="text-2xl font-bold mt-2 mb-1">A quick safety check</h1>
       <p className="text-sm text-muted mb-6">
         Longevity Pillars offers general wellness information, not medical advice. A full
@@ -77,7 +77,7 @@ export default function SafetyPage() {
         {saving ? 'Saving…' : 'Save and continue'}
       </button>
       <p className="text-center text-xs text-muted mt-3">
-        <Link href="/start/metrics" className="underline underline-offset-2">Skip for now</Link>
+        <Link href="/start/lookback" className="underline underline-offset-2">Skip for now</Link>
       </p>
     </main>
   )

@@ -9,7 +9,7 @@ import { fmtSleepHM } from './format'
 import type { MetricKey, BandChoice } from './referenceRanges'
 
 export const DEFAULT_LOOKBACK_DAYS = 28
-export const LOOKBACK_OPTIONS = [14, 28, 90] as const
+export const LOOKBACK_OPTIONS = [14, 28, 60, 90] as const
 
 export interface DayValue {
   date: string // YYYY-MM-DD

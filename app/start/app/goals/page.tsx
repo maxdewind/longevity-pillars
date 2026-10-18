@@ -77,7 +77,7 @@ export default function AppGoalsPage() {
         </div>
       )}
       <p className="text-center text-xs text-muted mt-4">
-        <Link href="/start/metrics" className="underline underline-offset-2">Log today&apos;s metrics</Link>
+        <Link href="/start/app/metrics" className="underline underline-offset-2">Log today&apos;s metrics</Link>
       </p>
     </div>
   )

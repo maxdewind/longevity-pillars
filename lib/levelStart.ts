@@ -6,7 +6,7 @@ import { addDays, WINDOW_DAYS, OBSERVED_REQUIRED } from './levels'
 import { todayISO } from './format'
 
 interface TemplateLike {
-  level_number: number
+  level_number: number | null
   title: string
   detail: string
   pillars: string[] | null

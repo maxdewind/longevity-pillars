@@ -1,80 +1,52 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
-function ExampleCard({ change, result, verdict, tone }: { change: string; result: string; verdict: string; tone: string }) {
-  return (
-    <div className="card p-3">
-      <p className="font-semibold text-sm">{change}</p>
-      <p className="text-xs text-muted mt-1">{result}</p>
-      <p className="text-xs font-semibold mt-2" style={{ color: tone }}>Verdict: {verdict}</p>
-    </div>
-  )
-}
+const STEPS = ['Pick one change', 'Run it for 12 days', 'Get your verdict']
 
 export default function StartPage() {
   const router = useRouter()
 
   return (
-    <main className="max-w-md mx-auto px-4 pt-8 pb-28">
-      <section>
-        <p className="text-xs text-muted uppercase tracking-wide">How it works?</p>
-        <h1 className="text-3xl font-bold mt-2">One experiment at a time.</h1>
-        <p className="text-sm text-muted mt-2">
-          Pre-register a single change, measure it against your own baseline, let the data decide.
+    <main className="max-w-md mx-auto px-4 pt-10 pb-28">
+      <p className="text-xs text-muted uppercase tracking-widest">Longevity Pillars</p>
+      <h1 className="text-4xl font-bold mt-3 leading-tight">Find what actually works for your body.</h1>
+      <p className="text-muted mt-3">
+        Test one small change at a time against your own Apple Health data. Keep what
+        works. Drop what doesn&apos;t.
+      </p>
+
+      <div className="card mt-6 space-y-3">
+        {STEPS.map((s, i) => (
+          <p key={s} className="text-lg">
+            <span className="text-accent font-bold mr-3">{i + 1}</span>
+            {s}
+          </p>
+        ))}
+      </div>
+
+      <div className="card mt-4">
+        <p className="text-xs text-muted uppercase tracking-widest">Sample verdict</p>
+        <p className="font-semibold text-lg mt-2">Eating window 11:30 to 19:30</p>
+        <p className="text-sm text-muted mt-1">
+          12 days. Overnight heart rate down 2.4 bpm vs your normal.
         </p>
+        <p className="font-semibold mt-2" style={{ color: '#7ee2a8' }}>Verdict: Keep</p>
+      </div>
 
-        <div className="grid grid-cols-3 gap-2 mt-6">
-          <div className="card text-center p-3">
-            <p className="font-semibold text-sm">The change</p>
-            <p className="text-xs text-muted mt-1">State your hypothesis</p>
-          </div>
-          <div className="card text-center p-3">
-            <p className="font-semibold text-sm">12 days</p>
-            <p className="text-xs text-muted mt-1">Track and measure</p>
-          </div>
-          <div className="card text-center p-3">
-            <p className="font-semibold text-sm">Verdict</p>
-            <p className="text-xs text-muted mt-1">Keep, extend, or drop</p>
-          </div>
-        </div>
-
-        <p className="text-sm mt-6">
-          Generic advice goes in. Personal proof comes out. Every experiment answers one
-          question: does this specific change actually move the needle for me? People are
-          different, so we test on the only person who matters here: you.
-        </p>
-
-        <p className="text-xs uppercase tracking-wide text-muted mt-6 mb-2">How a verdict looks</p>
-        <div className="space-y-2">
-          <ExampleCard
-            change="No foods with added sugar"
-            result="12 days. Weight down 3.5 lb."
-            verdict="Keep"
-            tone="#7ee2a8"
-          />
-          <ExampleCard
-            change="No food 3 hours before bed"
-            result="12 days. Deep sleep up 11 minutes a night."
-            verdict="Keep"
-            tone="#7ee2a8"
-          />
-          <ExampleCard
-            change="Going gluten-free"
-            result="12 days, but only 5 of 10 days held. No clean read."
-            verdict="Extend 5 days"
-            tone="#e8c468"
-          />
-        </div>
-
-        <button
-          type="button"
-          onClick={() => router.push('/start/safety')}
-          className="btn-primary w-full mt-8"
-        >
-          Start experiment
-        </button>
-      </section>
+      <button
+        type="button"
+        onClick={() => router.push('/start/safety')}
+        className="btn-primary w-full mt-8 !py-4 text-lg"
+      >
+        Connect Apple Health
+      </button>
+      <p className="text-center mt-4">
+        <Link href="/start/normal?manual=1" className="text-sm text-muted underline underline-offset-4">
+          Enter my numbers manually
+        </Link>
+      </p>
     </main>
   )
 }
