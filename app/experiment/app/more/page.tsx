@@ -79,7 +79,7 @@ export default function StartAppMorePage() {
         <p className="text-sm text-muted mb-3">
           Update your answers to the safety questions any time.
         </p>
-        <Link href="/start/safety" className="text-sm text-accent underline underline-offset-2">
+        <Link href="/experiment/safety" className="text-sm text-accent underline underline-offset-2">
           Re-answer the safety questions
         </Link>
       </div>

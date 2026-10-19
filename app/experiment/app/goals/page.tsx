@@ -30,7 +30,7 @@ export default function AppGoalsPage() {
         <p className="text-sm text-muted mb-4">
           Tick a metric, then slide the marker to where you would like to be.
         </p>
-        <GoalSliderForm nextHref="/start/app/goals" nextLabel="Save goals" onSaved={() => { setEditing(false); reload() }} />
+        <GoalSliderForm nextHref="/experiment/app/goals" nextLabel="Save goals" onSaved={() => { setEditing(false); reload() }} />
       </div>
     )
   }
@@ -77,7 +77,7 @@ export default function AppGoalsPage() {
         </div>
       )}
       <p className="text-center text-xs text-muted mt-4">
-        <Link href="/start/app/metrics" className="underline underline-offset-2">Log today&apos;s metrics</Link>
+        <Link href="/experiment/app/metrics" className="underline underline-offset-2">Log today&apos;s metrics</Link>
       </p>
     </div>
   )

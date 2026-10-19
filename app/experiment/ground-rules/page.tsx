@@ -129,7 +129,7 @@ export default function StartGroundRulesPage() {
       }
       const id = await startLevelExperiment(supabase, user.id, tpl, hypothesis)
       clearFirstRunSelection()
-      window.location.href = `/start/started/${id}`
+      window.location.href = `/experiment/started/${id}`
     } catch (e) {
       setError(errMsg(e))
     }
@@ -151,7 +151,7 @@ export default function StartGroundRulesPage() {
       <main className="max-w-md mx-auto px-4 pt-8 pb-28">
         <div className="card">
           <p className="text-muted mb-3">Pick an experiment first.</p>
-          <Link href="/start/first" className="btn-primary w-full block text-center">
+          <Link href="/experiment/first" className="btn-primary w-full block text-center">
             Choose my experiment
           </Link>
         </div>

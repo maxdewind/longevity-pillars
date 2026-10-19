@@ -228,7 +228,7 @@ export default function StartLookbackPage() {
 
       <button
         type="button"
-        onClick={() => router.push('/start/normal')}
+        onClick={() => router.push('/experiment/normal')}
         className="btn-primary w-full mt-8 !py-4 text-lg"
       >
         Continue

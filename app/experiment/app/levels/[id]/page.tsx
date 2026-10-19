@@ -316,7 +316,7 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
         verdict: kind,
       }).eq('id', exp.id)
       if (error) throw error
-      window.location.href = '/start/app/levels'
+      window.location.href = '/experiment/app/levels'
     } catch (e) {
       setError(errMsg(e))
     }
@@ -328,7 +328,7 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
     return (
       <main className="p-6 max-w-xl mx-auto">
         <p className="text-sm" style={{ color: '#e0607e' }}>{error}</p>
-        <Link href="/start/app/levels" className="btn mt-4 inline-block" style={{ textDecoration: 'none' }}>Back to Levels</Link>
+        <Link href="/experiment/app/levels" className="btn mt-4 inline-block" style={{ textDecoration: 'none' }}>Back to Levels</Link>
       </main>
     )
   }
@@ -336,7 +336,7 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
     return (
       <main className="p-6 max-w-xl mx-auto">
         <p className="text-sm text-muted">Level run not found.</p>
-        <Link href="/start/app/levels" className="btn mt-4 inline-block" style={{ textDecoration: 'none' }}>Back to Levels</Link>
+        <Link href="/experiment/app/levels" className="btn mt-4 inline-block" style={{ textDecoration: 'none' }}>Back to Levels</Link>
       </main>
     )
   }

@@ -37,7 +37,7 @@ export default function SafetyPage() {
       }
     } finally {
       setSaving(false)
-      router.push('/start/lookback')
+      router.push('/experiment/lookback')
     }
   }
 
@@ -77,7 +77,7 @@ export default function SafetyPage() {
         {saving ? 'Saving…' : 'Save and continue'}
       </button>
       <p className="text-center text-xs text-muted mt-3">
-        <Link href="/start/lookback" className="underline underline-offset-2">Skip for now</Link>
+        <Link href="/experiment/lookback" className="underline underline-offset-2">Skip for now</Link>
       </p>
     </main>
   )

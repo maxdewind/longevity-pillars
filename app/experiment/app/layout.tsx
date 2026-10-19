@@ -5,11 +5,11 @@ import Link from 'next/link'
 import SignOutButton from '@/components/SignOutButton'
 
 const NAV = [
-  { href: '/start/app/today', label: 'Today' },
-  { href: '/start/app/levels', label: 'Levels' },
-  { href: '/start/app/metrics', label: 'Metrics' },
-  { href: '/start/app/goals', label: 'Goals' },
-  { href: '/start/app/more', label: 'More' },
+  { href: '/experiment/app/today', label: 'Today' },
+  { href: '/experiment/app/levels', label: 'Levels' },
+  { href: '/experiment/app/metrics', label: 'Metrics' },
+  { href: '/experiment/app/goals', label: 'Goals' },
+  { href: '/experiment/app/more', label: 'More' },
 ]
 
 export default function StartAppLayout({ children }: { children: React.ReactNode }) {

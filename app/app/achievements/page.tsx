@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { MILESTONES } from '@/lib/milestones'
 import { buildDemoSnapshot } from '@/lib/demoSnapshot'
@@ -245,11 +244,6 @@ export default function AchievementsPage() {
         </section>
       )}
 
-      <p className="mt-10 text-center text-xs">
-        <Link href="/start" className="text-muted underline underline-offset-2">
-          Try the new Levels experience
-        </Link>
-      </p>
     </main>
   )
 }

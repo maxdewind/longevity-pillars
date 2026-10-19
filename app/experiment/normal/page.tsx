@@ -414,7 +414,7 @@ export default function StartNormalPage() {
               )}
               <div className="flex items-center justify-between mt-3 gap-2">
                 <p className="text-sm">May help: Zone 2 cardio, weekly intervals</p>
-                <Link href="/start/first" className="text-sm font-semibold text-accent underline underline-offset-4 shrink-0">
+                <Link href="/experiment/first" className="text-sm font-semibold text-accent underline underline-offset-4 shrink-0">
                   See experiments
                 </Link>
               </div>
@@ -572,7 +572,7 @@ export default function StartNormalPage() {
 
       <button
         type="button"
-        onClick={() => router.push('/start/first')}
+        onClick={() => router.push('/experiment/first')}
         className="btn-primary w-full mt-8 !py-4 text-lg"
       >
         Pick my first experiment

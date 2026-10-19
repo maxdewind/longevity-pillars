@@ -136,7 +136,7 @@ export default function LevelsTodayPage() {
     return (
       <div className="card">
         <p className="text-muted mb-3">Your baseline is not set up yet.</p>
-        <Link href="/start/lookback" className="btn-primary block text-center">Set up my baseline</Link>
+        <Link href="/experiment/lookback" className="btn-primary block text-center">Set up my baseline</Link>
       </div>
     )
   }

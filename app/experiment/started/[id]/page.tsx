@@ -82,7 +82,7 @@ export default function StartedPage({ params }: { params: { id: string } }) {
       <main className="max-w-md mx-auto px-4 pt-8 pb-28">
         <div className="card">
           <p className="text-sm" style={{ color: '#e0607e' }}>{error ?? 'Experiment not found.'}</p>
-          <Link href="/start/app/levels" className="btn-primary w-full block text-center mt-4">
+          <Link href="/experiment/app/levels" className="btn-primary w-full block text-center mt-4">
             Back to Experiments
           </Link>
         </div>
@@ -166,7 +166,7 @@ export default function StartedPage({ params }: { params: { id: string } }) {
 
       <button
         type="button"
-        onClick={() => router.push(`/start/app/levels/${exp.id}`)}
+        onClick={() => router.push(`/experiment/app/levels/${exp.id}`)}
         className="btn-primary w-full mt-8 !py-4 text-lg"
       >
         Go to Today

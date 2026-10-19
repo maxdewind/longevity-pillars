@@ -246,7 +246,7 @@ export default function LevelsPage() {
         .select('id')
         .single()
       if (eErr) throw eErr
-      window.location.href = `/start/app/levels/${(exp as { id: string }).id}`
+      window.location.href = `/experiment/app/levels/${(exp as { id: string }).id}`
     } catch (e) {
       setPreErr(errMsg(e))
     }
@@ -272,7 +272,7 @@ export default function LevelsPage() {
       {error && <p className="mt-4 text-sm" style={{ color: '#e0607e' }}>{error}</p>}
 
       {activeExp && (
-        <Link href={`/start/app/levels/${activeExp.id}`} className="card mt-4 p-5 block" style={{ textDecoration: 'none', border: '1px solid #e0607e' }}>
+        <Link href={`/experiment/app/levels/${activeExp.id}`} className="card mt-4 p-5 block" style={{ textDecoration: 'none', border: '1px solid #e0607e' }}>
           <p className="text-xs font-semibold tracking-wider" style={{ color: '#e0607e' }}>RUNNING NOW</p>
           <p className="text-lg font-bold mt-1" style={{ color: '#fff' }}>Level {activeExp.template_level}: {activeExp.title}</p>
           <p className="text-sm mt-1" style={{ color: '#9aa0ae' }}>Day {Math.min(diffDays(activeExp.start_date, todayISO()) + 1, WINDOW_DAYS)} of {activeExp.window_days ?? WINDOW_DAYS}. Tap to open the run screen.</p>
@@ -308,7 +308,7 @@ export default function LevelsPage() {
               </div>
               <div className="mt-3">
                 {isActive ? (
-                  <Link href={`/start/app/levels/${activeExp.id}`} className="btn inline-block" style={{ textDecoration: 'none' }}>
+                  <Link href={`/experiment/app/levels/${activeExp.id}`} className="btn inline-block" style={{ textDecoration: 'none' }}>
                     Open run screen
                   </Link>
                 ) : doneInfo && !(lock.unlocked && !activeExp) ? (

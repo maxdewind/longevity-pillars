@@ -30,7 +30,7 @@ export default function StartPage() {
       }
     } finally {
       setConnecting(false)
-      router.push('/start/safety')
+      router.push('/experiment/safety')
     }
   }
 
@@ -105,7 +105,7 @@ export default function StartPage() {
         {connecting ? 'Connecting…' : 'Connect Apple Health'}
       </button>
       <p className="text-center mt-4">
-        <Link href="/start/normal?manual=1" className="text-sm text-muted underline underline-offset-4">
+        <Link href="/experiment/normal?manual=1" className="text-sm text-muted underline underline-offset-4">
           Enter my numbers manually
         </Link>
       </p>

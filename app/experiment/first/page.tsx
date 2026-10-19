@@ -143,7 +143,7 @@ export default function StartFirstPage() {
   const testSelected = () => {
     if (!selected) return
     saveFirstRunSelection({ kind: 'template', level_number: selected.level_number })
-    router.push('/start/ground-rules')
+    router.push('/experiment/ground-rules')
   }
 
   const testCustom = () => {
@@ -158,7 +158,7 @@ export default function StartFirstPage() {
       pillar: customPillar,
       hypothesis: customHypothesis.trim() || title,
     })
-    router.push('/start/ground-rules')
+    router.push('/experiment/ground-rules')
   }
 
   if (signedIn === false) {
@@ -184,7 +184,7 @@ export default function StartFirstPage() {
       {activeId ? (
         <div className="card mt-6">
           <p className="text-sm text-muted mb-3">You already have a run going.</p>
-          <Link href={`/start/app/levels/${activeId}`} className="btn-primary w-full block text-center">
+          <Link href={`/experiment/app/levels/${activeId}`} className="btn-primary w-full block text-center">
             Open my current run
           </Link>
         </div>
