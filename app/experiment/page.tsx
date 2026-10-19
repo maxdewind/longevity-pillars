@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { syncAppleHealthFromSheet } from '@/lib/appleHealthSync'
 
 const STEPS = [
   { title: 'Pick one change', sub: 'From 25 experiments, or write your own' },
@@ -23,7 +22,13 @@ export default function StartPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         try {
-          await syncAppleHealthFromSheet(supabase, user.id)
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session?.access_token) {
+            await fetch('/api/apple-health-sync', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            })
+          }
         } catch {
           /* lookback screen handles the empty state gracefully */
         }

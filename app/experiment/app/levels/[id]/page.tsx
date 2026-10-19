@@ -12,7 +12,6 @@ import {
   type ExperimentTemplate, type LevelsExperiment, type SignalRead, type VerdictKind, type VerdictSuggestion,
 } from '@/lib/levels'
 import { fetchBaselineValues, fetchProfileExtras } from '@/lib/baseline'
-import { syncAppleHealthFromSheet } from '@/lib/appleHealthSync'
 import { watchLabel } from '@/lib/firstRun'
 import { loadRunPrefs } from '@/lib/runPrefs'
 import { type MetricKey } from '@/lib/referenceRanges'
@@ -98,9 +97,16 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
         const e = eRow as LevelsExperiment
         setExp(e)
 
-        // Best-effort fresh pull from the Apple Health bridge sheet before reading.
+        // Best-effort fresh pull from the Apple Health bridge sheet before reading
+        // (server-side: the sheet endpoint blocks browser fetches via CORS).
         try {
-          await syncAppleHealthFromSheet(supabase, user.id)
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session?.access_token) {
+            await fetch('/api/apple-health-sync', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            })
+          }
         } catch {
           /* offline or sheet not shared yet — read what's in the DB */
         }
