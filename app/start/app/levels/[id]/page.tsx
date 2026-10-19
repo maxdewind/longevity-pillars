@@ -73,6 +73,7 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
   const [baselineAvg, setBaselineAvg] = useState<number | null>(null)
   const [baselineSd, setBaselineSd] = useState<number | null>(null)
   const [latestPrimary, setLatestPrimary] = useState<number | null>(null)
+  const [latestPrimaryDate, setLatestPrimaryDate] = useState<string | null>(null)
   const [secondaries, setSecondaries] = useState<SecondaryRead[]>([])
   const [morningCommitment, setMorningCommitment] = useState(true)
   const [loaded, setLoaded] = useState(false)
@@ -134,11 +135,10 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
         const observedVals = all.map((r) => Number(r.value))
         const observedDates = new Set(all.map((r) => r.entry_date))
         setObservedDays(observedDates.size)
-        setLatestPrimary(
-          observedVals.length > 0
-            ? observedVals[observedVals.length - 1]
-            : baselineVals.length > 0 ? baselineVals[baselineVals.length - 1] : null,
-        )
+        const lastObs = all.length > 0 ? all[all.length - 1] : null
+        const lastBase = baselineDayVals.length > 0 ? baselineDayVals[baselineDayVals.length - 1] : null
+        setLatestPrimary(lastObs ? Number(lastObs.value) : lastBase ? lastBase.value : null)
+        setLatestPrimaryDate(lastObs ? lastObs.entry_date : lastBase ? lastBase.date : null)
 
         // Secondary ("also watching") metrics: baseline avg + latest in-window reading.
         const secKeys = (t.secondary_metrics ?? []).filter((k) => k !== metricKey).slice(0, 4)
@@ -451,7 +451,8 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
             {latestPrimary != null ? fmtVal(template.primary_metric, latestPrimary) : '—'}
           </p>
           {primaryDelta != null && baselineAvg != null && (
-            <p className="text-sm text-muted tabular-nums shrink-0">
+            <p className="text-sm text-muted tabular-nums shrink-0 text-right">
+              {latestPrimaryDate && <>{fmtMD(latestPrimaryDate)} · </>}
               {fmtDelta(template.primary_metric, primaryDelta)} vs starting point {fmtVal(template.primary_metric, baselineAvg).replace(/(\d)\.0\b/, '$1')}
             </p>
           )}
