@@ -82,7 +82,7 @@ export default function StartGroundRulesPage() {
           if (vals.length > 0) {
             const avg = vals.reduce((a, v) => a + v.value, 0) / vals.length
             setStartingPoint(
-              `Starting point for this experiment: ${fmtStartingPoint(sel.primary_metric, avg)}, your ${prof.lookback} days before.}`,
+              `Starting point for this experiment: ${fmtStartingPoint(sel.primary_metric, avg)}, your ${prof.lookback} days before.`,
             )
           }
         } catch {
