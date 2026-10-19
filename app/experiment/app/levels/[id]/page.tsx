@@ -2,268 +2,251 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { todayISO } from '@/lib/format'
-import { fmtMD } from '@/lib/format'
+import { todayISO, fmtMD } from '@/lib/format'
 import {
-  WINDOW_DAYS, OBSERVED_REQUIRED, EXTEND_DAYS,
-  addDays, diffDays, errMsg, suggestVerdict, readSignal,
+  SPRINT_DAYS, SPRINT_EXTEND_DAYS, SPRINT_HELD_TO_KEEP,
+  addDays, diffDays, errMsg,
   METRIC_LABELS,
-  type ExperimentTemplate, type LevelsExperiment, type SignalRead, type VerdictKind, type VerdictSuggestion,
+  type ExperimentTemplate, type LevelsExperiment,
 } from '@/lib/levels'
 import { fetchBaselineValues, fetchProfileExtras } from '@/lib/baseline'
-import { watchLabel } from '@/lib/firstRun'
 import { loadRunPrefs } from '@/lib/runPrefs'
 import { type MetricKey } from '@/lib/referenceRanges'
+import DayDots from '@/components/sprint/DayDots'
+import { AllMetrics, EvidenceTag, type DrawerMetric } from '@/components/sprint/AllMetrics'
+import {
+  sprintVerdict, evidenceTier,
+  fmtMetricValue, fmtChangeVsUsual, fmtDeltaShort, withinUsualSwing,
+  fmtHeldNights, BLOCKER_CHIPS, SUSTAINABILITY_LABELS,
+  METRIC_DRAWER_LABELS, type SustainabilityKey,
+} from '@/lib/sprint'
+import { startLevelExperiment } from '@/lib/levelStart'
 
-const VERDICT_BUTTONS: { kind: VerdictKind; label: string }[] = [
-  { kind: 'keep', label: 'Keep it' },
-  { kind: 'extend', label: 'Extend 5 days' },
-  { kind: 'drop', label: 'Drop it' },
-  { kind: 'inconclusive', label: 'Inconclusive' },
-]
-
-function fmtVal(metric: string, v: number): string {
-  switch (metric) {
-    case 'weight_lb': return `${v.toFixed(1)} lb`
-    case 'sleep_hours': {
-      const h = Math.floor(v)
-      const m = Math.round((v - h) * 60)
-      return `${h}h ${m}m`
-    }
-    case 'deep_sleep_min': return `${Math.round(v)} min`
-    case 'overnight_hr_bpm': return `${Math.round(v)} bpm`
-    case 'overnight_hrv_ms': return `${Math.round(v)} ms`
-    case 'vo2max': return `${Math.round(v)}`
-    default: return `${v.toFixed(1)}`
-  }
+/** "10:30 PM" or "lights out by 10:30 pm" -> 22.5. Null when unparseable. */
+function parseRuleHour(text: string): number | null {
+  const m = text.match(/(\d{1,2}):(\d{2})\s*([ap])\.?m\.?/i)
+  if (!m) return null
+  let h = Number(m[1]) % 12
+  if (m[3].toLowerCase() === 'p') h += 12
+  return h + Number(m[2]) / 60
 }
 
-function fmtDelta(metric: string, d: number): string {
-  const sign = d > 0 ? '+' : d < 0 ? '−' : ''
-  const a = Math.abs(d)
-  switch (metric) {
-    case 'weight_lb': return `${sign}${a.toFixed(1)}`
-    case 'sleep_hours': return `${sign}${Math.round(a * 60)} min`
-    case 'deep_sleep_min': return `${sign}${Math.round(a)} min`
-    case 'overnight_hr_bpm': return `${sign}${Math.round(a)}`
-    case 'overnight_hrv_ms': return `${sign}${Math.round(a)}`
-    case 'vo2max': return `${sign}${a.toFixed(1)}`
-    default: return `${sign}${a.toFixed(1)}`
-  }
-}
-
-interface SecondaryRead {
-  key: string
-  latest: number | null
-  baselineAvg: number | null
-}
+interface DayEntry { entry_date: string; value: number }
 
 export default function LevelRunPage({ params }: { params: { id: string } }) {
+  const router = useRouter()
   const [exp, setExp] = useState<LevelsExperiment | null>(null)
   const [template, setTemplate] = useState<ExperimentTemplate | null>(null)
-  const [signal, setSignal] = useState<SignalRead | null>(null)
-  const [suggestion, setSuggestion] = useState<VerdictSuggestion | null>(null)
+  const [dayHeldManual, setDayHeldManual] = useState<Record<string, boolean>>({})
+  const [bedtimeByDate, setBedtimeByDate] = useState<DayEntry[]>([])
   const [heldToday, setHeldToday] = useState(false)
   const [committedToday, setCommittedToday] = useState(false)
-  const [dayHeld, setDayHeld] = useState<Record<string, boolean>>({})
-  const [observedDays, setObservedDays] = useState(0)
-  const [observedRequired, setObservedRequired] = useState(OBSERVED_REQUIRED)
-  const [baselineHeldPct, setBaselineHeldPct] = useState<number | null>(null)
   const [baselineAvg, setBaselineAvg] = useState<number | null>(null)
   const [baselineSd, setBaselineSd] = useState<number | null>(null)
-  const [latestPrimary, setLatestPrimary] = useState<number | null>(null)
-  const [latestPrimaryDate, setLatestPrimaryDate] = useState<string | null>(null)
-  const [secondaries, setSecondaries] = useState<SecondaryRead[]>([])
+  const [baselineCount, setBaselineCount] = useState(0)
+  const [primaryEntries, setPrimaryEntries] = useState<DayEntry[]>([])
+  const [drawerMetrics, setDrawerMetrics] = useState<DrawerMetric[]>([])
+  const [alsoMoved, setAlsoMoved] = useState<DrawerMetric[]>([])
+  const [pinned, setPinned] = useState<string[]>([])
+  const [sustainability, setSustainability] = useState<SustainabilityKey | null>(null)
+  const [blockers, setBlockers] = useState<string[]>([])
   const [morningCommitment, setMorningCommitment] = useState(true)
   const [loaded, setLoaded] = useState(false)
   const [acting, setActing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const load = async () => {
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setLoaded(true); return }
+      const { data: eRow, error: eErr } = await supabase
+        .from('experiments').select('*')
+        .eq('id', params.id).eq('user_id', user.id).single()
+      if (eErr) throw eErr
+      const e = eRow as LevelsExperiment
+      setExp(e)
+      setPinned((e.pinned_metrics as string[] | null) ?? [])
+      setSustainability((e.sustainability as SustainabilityKey | null) ?? null)
+      setBlockers((e.blockers as string[] | null) ?? [])
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.access_token) {
+          await fetch('/api/apple-health-sync', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          })
+        }
+      } catch { /* read what's in the DB */ }
+
+      let t: ExperimentTemplate | null = null
+      if (e.template_level != null) {
+        const { data: tRow } = await supabase
+          .from('experiment_templates').select('*')
+          .eq('level_number', e.template_level).maybeSingle()
+        t = (tRow as ExperimentTemplate | null) ?? null
+      }
+      setTemplate(t)
+
+      const today = todayISO()
+      const windowEnd = today < e.end_date ? today : e.end_date
+      const metricKey = ((e.primary_metric as MetricKey | null) ?? t?.primary_metric ?? 'sleep_hours') as MetricKey
+      const profLb = await fetchProfileExtras(supabase, user.id)
+      const lb = profLb.lookback
+
+      // Starting point (usual + swing + count).
+      const baselineDayVals = await fetchBaselineValues(supabase, user.id, metricKey as MetricKey, e.start_date, lb)
+      const bVals = baselineDayVals.map((r) => r.value)
+      if (bVals.length > 0) {
+        const avg = bVals.reduce((a, b) => a + b, 0) / bVals.length
+        const sd = Math.sqrt(bVals.reduce((a, b) => a + (b - avg) ** 2, 0) / bVals.length)
+        setBaselineAvg(avg)
+        setBaselineSd(sd)
+      }
+      setBaselineCount(bVals.length)
+
+      // In-window primary entries.
+      const { data: entries } = await supabase
+        .from('metric_entries').select('entry_date, value')
+        .eq('user_id', user.id).eq('metric_key', metricKey)
+        .gte('entry_date', e.start_date).lte('entry_date', windowEnd)
+        .order('entry_date')
+      const prim = ((entries as DayEntry[] | null) ?? []).map((r) => ({ entry_date: r.entry_date, value: Number(r.value) }))
+      setPrimaryEntries(prim)
+
+      // Bedtime entries for watch-verifiable derivation.
+      if (t?.watch_verifiable) {
+        const { data: bt } = await supabase
+          .from('metric_entries').select('entry_date, value')
+          .eq('user_id', user.id).eq('metric_key', 'bedtime')
+          .gte('entry_date', e.start_date).lte('entry_date', addDays(e.end_date, 1))
+          .order('entry_date')
+        setBedtimeByDate(((bt as DayEntry[] | null) ?? []).map((r) => ({ entry_date: r.entry_date, value: Number(r.value) })))
+      }
+
+      // Manual checks.
+      const { data: checks } = await supabase
+        .from('protocol_checks').select('log_date, held, committed')
+        .eq('user_id', user.id).eq('protocol_id', e.protocol_id)
+        .gte('log_date', e.start_date).lte('log_date', windowEnd)
+      const heldMap: Record<string, boolean> = {}
+      let committed = false
+      ;((checks as { log_date: string; held: boolean; committed: boolean }[] | null) ?? []).forEach((c) => {
+        heldMap[c.log_date] = c.held
+        if (c.log_date === today && c.committed) committed = true
+      })
+      setDayHeldManual(heldMap)
+      setCommittedToday(committed)
+
+      // Drawer + Also moved metrics.
+      const drawerKeys = ['sleep_hours', 'bedtime', 'deep_sleep_min', 'overnight_hrv_ms', 'overnight_hr_bpm', 'overnight_spo2', 'weight_lb', 'vo2max']
+      const reads = await Promise.all(drawerKeys.map(async (k) => {
+        const [b, { data: sEntries }] = await Promise.all([
+          fetchBaselineValues(supabase, user.id, k as MetricKey, e.start_date, lb),
+          supabase.from('metric_entries').select('entry_date, value')
+            .eq('user_id', user.id).eq('metric_key', k)
+            .gte('entry_date', e.start_date).lte('entry_date', windowEnd).order('entry_date'),
+        ])
+        const bv = b.map((r) => r.value)
+        const sv = ((sEntries as DayEntry[] | null) ?? []).map((r) => Number(r.value))
+        return {
+          key: k,
+          value: sv.length > 0 ? sv[sv.length - 1] : null,
+          usual: bv.length > 0 ? bv.reduce((a, x) => a + x, 0) / bv.length : null,
+        } as DrawerMetric
+      }))
+      setDrawerMetrics(reads)
+      const pinList = (e.pinned_metrics as string[] | null) ?? []
+      const alsoKeys = pinList.length > 0
+        ? pinList
+        : (t?.secondary_metrics ?? []).filter((k) => k !== metricKey).slice(0, 3)
+      setAlsoMoved(alsoKeys.map((k) => reads.find((r) => r.key === k)).filter((m): m is DrawerMetric => !!m && m.value != null))
+    } catch (e) {
+      setError(errMsg(e))
+    }
+    setLoaded(true)
+  }
+
   useEffect(() => {
     setMorningCommitment(loadRunPrefs().morningCommitment)
-    const load = async () => {
-      try {
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) { setLoaded(true); return }
-        const { data: eRow, error: eErr } = await supabase
-          .from('experiments')
-          .select('*')
-          .eq('id', params.id)
-          .eq('user_id', user.id)
-          .single()
-        if (eErr) throw eErr
-        const e = eRow as LevelsExperiment
-        setExp(e)
-
-        // Best-effort fresh pull from the Apple Health bridge sheet before reading
-        // (server-side: the sheet endpoint blocks browser fetches via CORS).
-        try {
-          const { data: { session } } = await supabase.auth.getSession()
-          if (session?.access_token) {
-            await fetch('/api/apple-health-sync', {
-              method: 'POST',
-              headers: { Authorization: `Bearer ${session.access_token}` },
-            })
-          }
-        } catch {
-          /* offline or sheet not shared yet — read what's in the DB */
-        }
-
-        const { data: tRow, error: tErr } = await supabase
-          .from('experiment_templates')
-          .select('*')
-          .eq('level_number', e.template_level)
-          .single()
-        if (tErr) throw tErr
-        const t = tRow as ExperimentTemplate
-        setTemplate(t)
-
-        const today = todayISO()
-        const windowEnd = today < e.end_date ? today : e.end_date
-        const metricKey = t.primary_metric
-        const req = e.observed_days_required ?? OBSERVED_REQUIRED
-        setObservedRequired(req)
-
-        const profLb = await fetchProfileExtras(supabase, user.id)
-        const lb = profLb.lookback
-        const baselineDayVals = await fetchBaselineValues(supabase, user.id, metricKey, e.start_date, lb)
-        const baselineVals = baselineDayVals.map((r) => r.value)
-        if (baselineVals.length > 0) {
-          const avg = baselineVals.reduce((a, b) => a + b, 0) / baselineVals.length
-          const sd = Math.sqrt(baselineVals.reduce((a, b) => a + (b - avg) ** 2, 0) / baselineVals.length)
-          setBaselineAvg(avg)
-          setBaselineSd(sd)
-        }
-
-        const { data: entries } = await supabase
-          .from('metric_entries')
-          .select('entry_date, value')
-          .eq('user_id', user.id)
-          .eq('metric_key', metricKey)
-          .gte('entry_date', e.start_date)
-          .lte('entry_date', windowEnd)
-          .order('entry_date')
-        const all = (entries as { entry_date: string; value: number }[] | null) ?? []
-        const observedVals = all.map((r) => Number(r.value))
-        const observedDates = new Set(all.map((r) => r.entry_date))
-        setObservedDays(observedDates.size)
-        const lastObs = all.length > 0 ? all[all.length - 1] : null
-        const lastBase = baselineDayVals.length > 0 ? baselineDayVals[baselineDayVals.length - 1] : null
-        setLatestPrimary(lastObs ? Number(lastObs.value) : lastBase ? lastBase.value : null)
-        setLatestPrimaryDate(lastObs ? lastObs.entry_date : lastBase ? lastBase.date : null)
-
-        // Secondary ("also watching") metrics: baseline avg + latest in-window reading.
-        const secKeys = (t.secondary_metrics ?? []).filter((k) => k !== metricKey).slice(0, 4)
-        const secReads: SecondaryRead[] = await Promise.all(secKeys.map(async (k) => {
-          const [bVals, { data: sEntries }] = await Promise.all([
-            fetchBaselineValues(supabase, user.id, k as MetricKey, e.start_date, lb),
-            supabase.from('metric_entries').select('entry_date, value')
-              .eq('user_id', user.id).eq('metric_key', k)
-              .gte('entry_date', e.start_date).lte('entry_date', windowEnd).order('entry_date'),
-          ])
-          const b = bVals.map((r) => r.value)
-          const s = ((sEntries as { entry_date: string; value: number }[] | null) ?? []).map((r) => Number(r.value))
-          return {
-            key: k,
-            latest: s.length > 0 ? s[s.length - 1] : (b.length > 0 ? b[b.length - 1] : null),
-            baselineAvg: b.length > 0 ? b.reduce((a, x) => a + x, 0) / b.length : null,
-          }
-        }))
-        setSecondaries(secReads)
-
-        const sig = readSignal(t.primary_metric, t.threshold_direction, baselineVals, observedVals)
-        setSignal(sig)
-
-        const { data: checks } = await supabase
-          .from('protocol_checks')
-          .select('log_date, held, committed')
-          .eq('user_id', user.id)
-          .eq('protocol_id', e.protocol_id)
-          .gte('log_date', e.start_date)
-          .lte('log_date', windowEnd)
-        const heldMap: Record<string, boolean> = {}
-        let committed = false
-        ;((checks as { log_date: string; held: boolean; committed: boolean }[] | null) ?? []).forEach((c) => {
-          heldMap[c.log_date] = c.held
-          if (c.log_date === today && c.committed) committed = true
-        })
-        setDayHeld(heldMap)
-        setHeldToday(heldMap[today] === true)
-        setCommittedToday(committed)
-
-        const windowDays = e.window_days ?? WINDOW_DAYS
-        const elapsed = Math.min(diffDays(e.start_date, windowEnd) + 1, windowDays)
-        const adherence = elapsed > 0
-          ? Object.values(heldMap).filter(Boolean).length / elapsed
-          : null
-
-        const expPids = new Set([e.protocol_id])
-        const { data: protos } = await supabase
-          .from('protocols')
-          .select('id, created_at')
-          .eq('user_id', user.id)
-          .eq('track', 'levels')
-          .eq('enabled', true)
-        const baseline = ((protos as { id: string; created_at: string }[] | null) ?? []).filter((p) => !expPids.has(p.id))
-        let stab: number | null = null
-        if (baseline.length > 0) {
-          const stabStart = addDays(today, -9)
-          const { data: bchecks } = await supabase
-            .from('protocol_checks')
-            .select('protocol_id, log_date, held')
-            .eq('user_id', user.id)
-            .in('protocol_id', baseline.map((b) => b.id))
-            .gte('log_date', stabStart)
-            .lte('log_date', today)
-          const list = (bchecks as { protocol_id: string; log_date: string; held: boolean }[] | null) ?? []
-          let num = 0, den = 0
-          for (const b of baseline) {
-            const since = b.created_at.slice(0, 10)
-            const from = since > stabStart ? since : stabStart
-            den += diffDays(from, today) + 1
-            num += list.filter((c) => c.protocol_id === b.id && c.log_date >= from && c.held).length
-          }
-          stab = den > 0 ? num / den : null
-        }
-        setBaselineHeldPct(stab)
-
-        const { data: prof } = await supabase
-          .from('profiles')
-          .select('stability_gate_pct')
-          .eq('id', user.id)
-          .single()
-        const gate = (prof as { stability_gate_pct?: number | null } | null)?.stability_gate_pct
-        const gatePct = typeof gate === 'number' && gate >= 80 && gate <= 100 ? gate : 90
-
-        setSuggestion(suggestVerdict({
-          template: t,
-          signal: sig,
-          observedDays: observedDates.size,
-          observedRequired: req,
-          baselineDays: baselineVals.length,
-          experimentAdherence: adherence,
-          baselineStability: stab,
-          stabilityGatePct: gatePct,
-        }))
-      } catch (e) {
-        setError(errMsg(e))
-      }
-      setLoaded(true)
-    }
     load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id])
 
+  if (!loaded) return <main className="p-6 text-muted">Loading…</main>
+  if (error && !exp) {
+    return (
+      <main className="p-6 max-w-xl mx-auto">
+        <p className="text-sm" style={{ color: '#e0607e' }}>{error}</p>
+        <Link href="/experiment/app/protocol" className="btn mt-4 inline-block" style={{ textDecoration: 'none' }}>Back to My protocol</Link>
+      </main>
+    )
+  }
+  if (!exp) {
+    return (
+      <main className="p-6 max-w-xl mx-auto">
+        <p className="text-sm text-muted">Experiment not found.</p>
+        <Link href="/experiment/app/protocol" className="btn mt-4 inline-block" style={{ textDecoration: 'none' }}>Back to My protocol</Link>
+      </main>
+    )
+  }
+
+  const today = todayISO()
+  const windowDays = exp.window_days ?? SPRINT_DAYS
+  const dayNum = Math.min(Math.max(diffDays(exp.start_date, today) + 1, 1), windowDays)
+  const windowEnded = today > exp.end_date
+  const metricKey = ((exp.primary_metric as MetricKey | null) ?? template?.primary_metric ?? 'sleep_hours') as MetricKey
+  const metricMeta = METRIC_LABELS[metricKey]
+
+  // Current ramp step rule (smaller-rule flow) or the template rule.
+  const rampSteps = (exp.ramp_steps as { label: string; detail: string }[] | null) ?? null
+  const rampStep = exp.ramp_step ?? null
+  const stepDetail = rampSteps && rampStep != null && rampSteps[rampStep] ? rampSteps[rampStep].detail : null
+  const ruleDetail = stepDetail ?? template?.detail ?? exp.hypothesis ?? ''
+  const ruleHour = parseRuleHour(stepDetail ?? template?.detail ?? '')
+
+  // Effective held: manual taps win; watch-verifiable rules fill gaps from the metric.
+  const derivedHeld: Record<string, boolean> = {}
+  if (template?.watch_verifiable && ruleHour != null) {
+    const byWake = new Map(bedtimeByDate.map((r) => [r.entry_date, r.value]))
+    for (let i = 0; i < windowDays; i++) {
+      const night = addDays(exp.start_date, i)
+      const wake = addDays(exp.start_date, i + 1)
+      const bt = byWake.get(wake)
+      if (bt != null && Number.isFinite(bt)) derivedHeld[night] = bt <= ruleHour
+    }
+  }
+  const effectiveHeld: Record<string, boolean> = { ...derivedHeld }
+  Object.entries(dayHeldManual).forEach(([d, v]) => { effectiveHeld[d] = v })
+  const heldCount = Object.values(effectiveHeld).filter(Boolean).length
+
+  const usual = baselineAvg
+  const swing = baselineSd
+  const values = primaryEntries.map((r) => r.value)
+  const sprintAvg = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : null
+  const latestVal = values.length > 0 ? values[values.length - 1] : null
+  const verdict = sprintVerdict(heldCount, windowDays)
+  const hasSignal = sprintAvg != null && usual != null && swing != null
+    ? Math.abs(sprintAvg - usual) > swing
+    : null
+  const outcome: 'held' | 'held_no_signal' | 'not_held' =
+    verdict === 'not_held' ? 'not_held' : (hasSignal === false ? 'held_no_signal' : 'held')
+
+  const mode: 'active' | 'early' | 'verdict' =
+    windowEnded ? 'verdict' : dayNum < 3 ? 'active' : 'early'
+
   const upsertCheck = async (patch: { held?: boolean; committed?: boolean }) => {
-    if (!exp || acting) return
+    if (acting) return
     setActing(true)
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not signed in.')
       const { error } = await supabase.from('protocol_checks').upsert(
-        { user_id: user.id, protocol_id: exp.protocol_id, log_date: todayISO(), ...patch },
+        { user_id: user.id, protocol_id: exp.protocol_id, log_date: today, ...patch },
         { onConflict: 'user_id,protocol_id,log_date' },
       )
       if (error) throw error
@@ -273,11 +256,10 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
     setActing(false)
   }
 
-  const toggleHeld = async () => {
-    const next = !heldToday
-    await upsertCheck({ held: next })
-    setHeldToday(next)
-    setDayHeld((prev) => ({ ...prev, [todayISO()]: next }))
+  const markHeld = async (held: boolean) => {
+    await upsertCheck({ held })
+    setHeldToday(held)
+    setDayHeldManual((prev) => ({ ...prev, [today]: held }))
   }
 
   const toggleCommitted = async () => {
@@ -286,284 +268,527 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
     setCommittedToday(next)
   }
 
-  const skipToday = async () => {
-    await upsertCheck({ held: false, committed: false })
-    setHeldToday(false)
-    setCommittedToday(false)
-    setDayHeld((prev) => ({ ...prev, [todayISO()]: false }))
+  const savePins = async (next: string[]) => {
+    setPinned(next)
+    const supabase = createClient()
+    await supabase.from('experiments').update({ pinned_metrics: next }).eq('id', exp.id)
   }
 
-  const recordVerdict = async (kind: VerdictKind) => {
-    if (!exp || acting) return
-    if (!confirm(kind === 'drop'
-      ? 'Drop this level? It will be disabled and the next level stays locked until the baseline is stable.'
-      : `Record verdict: ${kind === 'keep' ? 'Keep it' : kind === 'extend' ? 'Extend 5 days' : 'Inconclusive'}?`)) return
+  const togglePin = (key: string) => {
+    const next = pinned.includes(key)
+      ? pinned.filter((k) => k !== key)
+      : pinned.length >= 3 ? pinned : [...pinned, key]
+    savePins(next)
+    // Refresh the Also moved rows.
+    const reads = drawerMetrics
+    const alsoKeys = next.length > 0 ? next : (template?.secondary_metrics ?? []).filter((k) => k !== metricKey).slice(0, 3)
+    setAlsoMoved(alsoKeys.map((k) => reads.find((r) => r.key === k)).filter((m): m is DrawerMetric => !!m && m.value != null))
+  }
+
+  const saveBlockers = async (next: string[]) => {
+    setBlockers(next)
+    const supabase = createClient()
+    await supabase.from('experiments').update({ blockers: next }).eq('id', exp.id)
+  }
+
+  const toggleBlocker = (b: string) => {
+    const next = blockers.includes(b) ? blockers.filter((x) => x !== b) : [...blockers, b]
+    saveBlockers(next)
+  }
+
+  const saveSustainability = async (s: SustainabilityKey) => {
+    setSustainability(s)
+    const supabase = createClient()
+    await supabase.from('experiments').update({ sustainability: s }).eq('id', exp.id)
+  }
+
+  const doExtend = async () => {
+    if (acting) return
+    if (!confirm('Extend this sprint by 3 days?')) return
     setActing(true)
     try {
       const supabase = createClient()
-      if (kind === 'extend') {
-        const newEnd = addDays(exp.end_date, EXTEND_DAYS)
-        const newWindow = (exp.window_days ?? WINDOW_DAYS) + EXTEND_DAYS
+      const newEnd = addDays(exp.end_date, SPRINT_EXTEND_DAYS)
+      const newWindow = windowDays + SPRINT_EXTEND_DAYS
+      const { error } = await supabase.from('experiments').update({
+        end_date: newEnd,
+        window_days: newWindow,
+        observed_days_required: newWindow - 2,
+        duration_days: (exp.duration_days ?? windowDays) + SPRINT_EXTEND_DAYS,
+        extended_days: (exp.extended_days ?? 0) + SPRINT_EXTEND_DAYS,
+      }).eq('id', exp.id)
+      if (error) throw error
+      window.location.reload()
+    } catch (e) {
+      setError(errMsg(e))
+      setActing(false)
+    }
+  }
+
+  const doKeep = async () => {
+    if (acting) return
+    setActing(true)
+    try {
+      const supabase = createClient()
+      // Ramp step advance: a new 7-day window at the next step.
+      if (rampSteps && rampStep != null && rampStep < rampSteps.length - 1) {
+        const nextStep = rampStep + 1
+        const newStart = today
         const { error } = await supabase.from('experiments').update({
-          end_date: newEnd,
-          window_days: newWindow,
-          observed_days_required: newWindow - 2,
-          duration_days: (exp.duration_days ?? WINDOW_DAYS) + EXTEND_DAYS,
+          start_date: newStart,
+          end_date: addDays(newStart, SPRINT_DAYS - 1),
+          duration_days: SPRINT_DAYS,
+          window_days: SPRINT_DAYS,
+          observed_days_required: SPRINT_DAYS - 2,
+          ramp_step: nextStep,
+          verdict: null,
+          sustainability: null,
+          blockers: [],
+          extended_days: 0,
         }).eq('id', exp.id)
         if (error) throw error
+        const { error: pErr } = await supabase.from('protocols').update({
+          label: exp.title,
+          detail: rampSteps[nextStep].detail,
+        }).eq('id', exp.protocol_id)
+        if (pErr) throw pErr
         window.location.reload()
         return
       }
-      if (kind === 'drop') {
-        await supabase.from('protocols').update({ enabled: false }).eq('id', exp.protocol_id)
-      }
       const { error } = await supabase.from('experiments').update({
-        status: 'done',
-        verdict: kind,
+        status: 'maintained',
+        verdict: outcome,
+        sustainability: sustainability,
+        reread_date: addDays(today, 28),
       }).eq('id', exp.id)
       if (error) throw error
-      window.location.href = '/experiment/app/levels'
+      router.push('/experiment/app/protocol')
     } catch (e) {
       setError(errMsg(e))
+      setActing(false)
     }
-    setActing(false)
   }
 
-  if (!loaded) return <main className="p-6 text-muted">Loading…</main>
-  if (error && !exp) {
-    return (
-      <main className="p-6 max-w-xl mx-auto">
-        <p className="text-sm" style={{ color: '#e0607e' }}>{error}</p>
-        <Link href="/experiment/app/levels" className="btn mt-4 inline-block" style={{ textDecoration: 'none' }}>Back to Levels</Link>
-      </main>
-    )
-  }
-  if (!exp || !template) {
-    return (
-      <main className="p-6 max-w-xl mx-auto">
-        <p className="text-sm text-muted">Level run not found.</p>
-        <Link href="/experiment/app/levels" className="btn mt-4 inline-block" style={{ textDecoration: 'none' }}>Back to Levels</Link>
-      </main>
-    )
+  const finishAndGo = async (nextStatus: 'done', nextVerdict: string, go: string) => {
+    if (acting) return
+    setActing(true)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.from('experiments').update({
+        status: nextStatus,
+        verdict: nextVerdict,
+        sustainability: sustainability,
+      }).eq('id', exp.id)
+      if (error) throw error
+      router.push(go)
+    } catch (e) {
+      setError(errMsg(e))
+      setActing(false)
+    }
   }
 
-  const today = todayISO()
-  const windowDays = exp.window_days ?? WINDOW_DAYS
-  const dayNum = Math.min(Math.max(diffDays(exp.start_date, today) + 1, 1), windowDays)
-  const verdictOpen = today >= exp.end_date || dayNum >= windowDays
-  const metricMeta = METRIC_LABELS[template.primary_metric]
-  const heldCount = Object.values(dayHeld).filter(Boolean).length
-  const alreadyExtended = windowDays > WINDOW_DAYS
-  const withinSwing = latestPrimary != null && baselineAvg != null && baselineSd != null
-    ? Math.abs(latestPrimary - baselineAvg) <= baselineSd
-    : null
-  const primaryDelta = latestPrimary != null && baselineAvg != null ? latestPrimary - baselineAvg : null
+  const doTryAgain = async () => {
+    if (acting || !template) return
+    setActing(true)
+    try {
+      const supabase = createClient()
+      await supabase.from('experiments').update({
+        status: 'done', verdict: 'not_held', sustainability: sustainability,
+      }).eq('id', exp.id)
+      const newId = await startLevelExperiment(
+        supabase, exp.user_id,
+        { level_number: template.level_number, title: template.title, detail: template.detail, pillars: template.pillars },
+        exp.hypothesis ?? template.detail,
+      )
+      router.push(`/experiment/app/levels/${newId}`)
+    } catch (e) {
+      setError(errMsg(e))
+      setActing(false)
+    }
+  }
+
+  const watchAuto = !!template?.watch_verifiable
 
   return (
     <main className="max-w-md mx-auto px-4 pt-8 pb-28">
-      <p className="text-xs text-muted uppercase tracking-widest">Day {dayNum} of {windowDays}</p>
-      <h1 className="text-3xl font-bold mt-2">{exp.title}</h1>
+      {/* Experiment name on its own line, max two lines. */}
+      <h1 className="text-xl font-bold leading-snug" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+        {exp.title}
+      </h1>
+      {ruleDetail && <p className="text-sm text-muted mt-1">Rule: {ruleDetail}</p>}
 
-      <div className="flex gap-2 mt-4">
-        {Array.from({ length: windowDays }, (_, i) => addDays(exp.start_date, i)).map((d) => {
-          const isToday = d === today
-          const held = dayHeld[d]
-          return (
-            <span
-              key={d}
-              title={d}
-              className="rounded-full"
-              style={{
-                width: 26, height: 26,
-                background: held ? '#f0506e' : 'transparent',
-                border: `1.5px solid ${held || isToday ? '#f0506e' : '#4a5160'}`,
-              }}
-            />
-          )
-        })}
-      </div>
-      <p className="text-sm text-muted mt-3">
-        Held {heldCount} of {windowDays} · Data days {observedDays} of {observedRequired} · Verdict {fmtMD(exp.end_date)}
-      </p>
+      {mode === 'verdict' ? (
+        <VerdictView
+          exp={exp} heldCount={heldCount} windowDays={windowDays}
+          sprintAvg={sprintAvg} usual={usual} swing={swing}
+          outcome={outcome} metricKey={metricKey}
+          primaryEntries={primaryEntries} effectiveHeld={effectiveHeld}
+          sustainability={sustainability} onSustainability={saveSustainability}
+          blockers={blockers} onToggleBlocker={toggleBlocker}
+          drawerMetrics={drawerMetrics} pinned={pinned} onTogglePin={togglePin}
+          alsoMoved={alsoMoved}
+          rampSteps={rampSteps} rampStep={rampStep}
+          acting={acting}
+          onExtend={doExtend} onKeep={doKeep} onTryAgain={doTryAgain}
+          onSmaller={() => router.push(`/experiment/app/levels/${exp.id}/smaller`)}
+          onSetAside={() => finishAndGo('done', 'not_held', '/experiment/app/protocol')}
+          tier={evidenceTier({ extendedDays: exp.extended_days ?? 0, rereadConfirmed: false })}
+        />
+      ) : (
+        <>
+          <h2 className="text-3xl font-bold mt-4">
+            Day {dayNum} of {windowDays}{mode === 'early' ? ': on track' : ''}
+          </h2>
+          <DayDots startDate={exp.start_date} windowDays={windowDays} dayHeld={effectiveHeld} today={today} />
+          <p className="text-sm text-muted mt-3">
+            {fmtHeldNights(heldCount, Math.min(dayNum, windowDays))} so far
+          </p>
 
-      <div className="card mt-5" style={{ borderColor: '#f0506e', borderWidth: 1.5 }}>
-        <p className="text-xs text-muted uppercase tracking-widest">Today</p>
-        <p className="font-semibold text-xl mt-2 leading-snug">{template.detail}</p>
-        {morningCommitment ? (
-          <div className="grid grid-cols-2 gap-3 mt-4">
-            <div>
-              <button
-                type="button"
-                onClick={toggleCommitted}
-                disabled={acting}
-                className="w-full rounded-xl py-3.5 font-semibold text-lg"
-                style={committedToday
-                  ? { background: 'rgba(126,226,168,0.15)', border: '1.5px solid #7ee2a8', color: '#7ee2a8' }
-                  : { background: 'transparent', border: '1.5px solid rgba(255,255,255,0.2)', color: '#fff' }}
-              >
-                {committedToday ? 'Committed' : 'Commit'}
-              </button>
-              <p className="text-xs text-muted text-center mt-2">
-                {committedToday ? 'Promised this morning' : 'Tap this morning'}
+          {mode === 'early' && (
+            <div className="card mt-5">
+              <p className="text-xs text-muted uppercase tracking-widest">{metricMeta.label} · primary</p>
+              <p className="text-4xl font-bold tabular-nums mt-2">
+                {latestVal != null ? fmtMetricValue(metricKey, latestVal) : '—'}
               </p>
+              {usual != null && latestVal != null && (
+                <p className="text-sm text-muted mt-1">
+                  {fmtChangeVsUsual(metricKey, latestVal, usual)}
+                  {withinUsualSwing(latestVal, usual, swing) ? ', within your usual swing' : ''}
+                </p>
+              )}
             </div>
+          )}
+
+          <div className="card mt-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-muted uppercase tracking-widest">Also moved</p>
+            </div>
+            {alsoMoved.length === 0 ? (
+              <p className="text-sm text-muted mt-2">No secondary readings yet.</p>
+            ) : (
+              <div className="mt-2 space-y-2.5">
+                {alsoMoved.map((m) => (
+                  <div key={m.key} className="flex items-baseline justify-between gap-2">
+                    <p>{METRIC_DRAWER_LABELS[m.key] ?? m.key}</p>
+                    <p className="tabular-nums shrink-0">
+                      <span className="font-bold text-lg">{fmtMetricValue(m.key, m.value!)}</span>
+                      {m.usual != null && (
+                        <span className="text-sm text-muted ml-2">{fmtDeltaShort(m.key, m.value! - m.usual)}</span>
+                      )}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {mode === 'early' && (
+              <p className="text-sm text-muted mt-3">
+                Change vs your usual. Too noisy to judge at {dayNum} {dayNum === 1 ? 'night' : 'nights'}.
+              </p>
+            )}
+            <AllMetrics
+              metrics={drawerMetrics}
+              primaryKey={metricKey}
+              pinned={pinned}
+              onTogglePin={togglePin}
+              totalCount={drawerMetrics.filter((m) => m.value != null).length}
+            />
+          </div>
+
+          {/* Tonight's log */}
+          <div className="mt-8">
+            {watchAuto ? (
+              <p className="text-sm text-muted text-center">
+                Checked automatically by your watch. No taps needed.
+              </p>
+            ) : (
+              <>
+                {morningCommitment && !committedToday && (
+                  <button
+                    type="button"
+                    onClick={toggleCommitted}
+                    disabled={acting}
+                    className="btn w-full"
+                  >
+                    Commit to tonight
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => markHeld(true)}
+                  disabled={acting}
+                  className="btn-primary w-full mt-3 !py-4 text-lg"
+                >
+                  Held tonight
+                </button>
+                <button
+                  type="button"
+                  onClick={() => markHeld(false)}
+                  disabled={acting}
+                  className="btn w-full mt-3 !py-4 text-lg"
+                >
+                  Not held
+                </button>
+              </>
+            )}
+            <p className="text-center text-sm text-muted mt-6">Sample data</p>
+          </div>
+        </>
+      )}
+      {error && <p className="text-sm mt-3" style={{ color: '#e0607e' }}>{error}</p>}
+    </main>
+  )
+}
+
+/** Day-7 verdict screens (held and not-held). */
+function VerdictView(args: {
+  exp: LevelsExperiment
+  heldCount: number
+  windowDays: number
+  sprintAvg: number | null
+  usual: number | null
+  swing: number | null
+  outcome: 'held' | 'held_no_signal' | 'not_held'
+  metricKey: string
+  primaryEntries: DayEntry[]
+  effectiveHeld: Record<string, boolean>
+  sustainability: SustainabilityKey | null
+  onSustainability: (s: SustainabilityKey) => void
+  blockers: string[]
+  onToggleBlocker: (b: string) => void
+  drawerMetrics: DrawerMetric[]
+  pinned: string[]
+  onTogglePin: (k: string) => void
+  alsoMoved: DrawerMetric[]
+  rampSteps: { label: string; detail: string }[] | null
+  rampStep: number | null
+  acting: boolean
+  onExtend: () => void
+  onKeep: () => void
+  onTryAgain: () => void
+  onSmaller: () => void
+  onSetAside: () => void
+  tier: 'Early' | 'Moderate' | 'Strong'
+}) {
+  const {
+    exp, heldCount, windowDays, sprintAvg, usual, swing, outcome, metricKey,
+    primaryEntries, effectiveHeld, sustainability, onSustainability,
+    blockers, onToggleBlocker, drawerMetrics, pinned, onTogglePin, alsoMoved,
+    rampSteps, rampStep, acting, onExtend, onKeep, onTryAgain, onSmaller, onSetAside, tier,
+  } = args
+  const today = todayISO()
+  const metricMeta = METRIC_LABELS[metricKey as keyof typeof METRIC_LABELS]
+  const isRamp = rampSteps != null && rampStep != null
+  const atFinalStep = !isRamp || rampStep === rampSteps.length - 1
+  const nextStepLabel = isRamp && !atFinalStep ? rampSteps[rampStep + 1].label : null
+
+  // Held vs not-held nightly comparison (needs 2+ nights with data in each group).
+  let heldAvg: number | null = null
+  let notHeldAvg: number | null = null
+  if (outcome === 'not_held') {
+    const byDate = new Map(primaryEntries.map((r) => [r.entry_date, r.value]))
+    const hv: number[] = []
+    const nv: number[] = []
+    for (let i = 0; i < windowDays; i++) {
+      const d = addDays(exp.start_date, i)
+      const v = byDate.get(d)
+      if (v == null) continue
+      if (effectiveHeld[d]) hv.push(v)
+      else nv.push(v)
+    }
+    if (hv.length >= 2 && nv.length >= 2) {
+      heldAvg = hv.reduce((a, b) => a + b, 0) / hv.length
+      notHeldAvg = nv.reduce((a, b) => a + b, 0) / nv.length
+    }
+  }
+
+  if (outcome === 'not_held') {
+    return (
+      <div className="mt-6">
+        <div className="card" style={{ background: '#262a35' }}>
+          <div className="flex items-center gap-4">
+            <span
+              className="w-14 h-14 rounded-full flex items-center justify-center shrink-0"
+              style={{ background: 'rgba(255,255,255,0.08)' }}
+            >
+              <span className="text-2xl text-muted">↻</span>
+            </span>
             <div>
-              <button
-                type="button"
-                onClick={toggleHeld}
-                disabled={acting}
-                className="w-full rounded-xl py-3.5 font-semibold text-lg"
-                style={heldToday
-                  ? { background: '#f0506e', border: 'none', color: '#fff' }
-                  : { background: 'transparent', border: '1.5px solid rgba(255,255,255,0.2)', color: '#fff' }}
-              >
-                {heldToday ? 'Held ✓' : 'Held'}
-              </button>
-              <p className="text-xs text-muted text-center mt-2">
-                {heldToday ? 'Stuck to it' : 'Tap tonight'}
+              <p className="text-2xl font-bold">Good data</p>
+              <p className="text-sm text-muted mt-1">
+                Day {windowDays} done. Held {heldCount} of {windowDays} nights. Nothing failed here, you learned something.
               </p>
             </div>
           </div>
-        ) : (
-          <button
-            type="button"
-            onClick={toggleHeld}
-            disabled={acting}
-            className="btn-primary w-full mt-4 !py-4 text-lg"
-          >
-            {heldToday ? 'Held ✓ — tap to undo' : 'Mark today held'}
-          </button>
-        )}
-        <p className="text-center mt-4">
-          <button
-            type="button"
-            onClick={skipToday}
-            className="text-sm text-muted underline underline-offset-4"
-          >
-            Skip today (sick or travelling)
+        </div>
+
+        <DayDots startDate={exp.start_date} windowDays={windowDays} dayHeld={effectiveHeld} today={today} />
+
+        <div className="card mt-5">
+          <p className="text-xs text-muted uppercase tracking-widest" style={{ color: '#f0506e' }}>What the data says</p>
+          <div className="mt-3 space-y-2.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="text-muted">{windowDays}-night average</p>
+              <p className="font-bold tabular-nums">
+                {sprintAvg != null ? fmtMetricValue(metricKey, sprintAvg) : '—'}
+                {usual != null && <span className="font-normal text-muted"> (usual {fmtMetricValue(metricKey, usual)})</span>}
+              </p>
+            </div>
+            {heldAvg != null && notHeldAvg != null && (
+              <>
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="text-muted">Nights held</p>
+                  <p className="font-bold tabular-nums">{fmtMetricValue(metricKey, heldAvg)}</p>
+                </div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="text-muted">Nights not held</p>
+                  <p className="font-bold tabular-nums">{fmtMetricValue(metricKey, notHeldAvg)}</p>
+                </div>
+                <p className="text-sm text-muted">
+                  You averaged {fmtMetricValue(metricKey, Math.abs(heldAvg - notHeldAvg))} {heldAvg >= notHeldAvg ? 'more' : 'less'} on the nights you held it.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+
+        <p className="font-semibold mt-6 mb-3" style={{ color: '#f0506e' }}>What got in the way?</p>
+        <div className="flex flex-wrap gap-2">
+          {BLOCKER_CHIPS.map((b) => {
+            const on = blockers.includes(b)
+            return (
+              <button
+                key={b}
+                type="button"
+                onClick={() => onToggleBlocker(b)}
+                className="rounded-full px-4 py-2 text-sm font-semibold border"
+                style={on
+                  ? { background: '#f0506e', borderColor: '#f0506e', color: '#fff' }
+                  : { borderColor: '#4a5160', color: '#9aa0ae' }}
+              >
+                {b}
+              </button>
+            )
+          })}
+        </div>
+
+        <p className="text-center text-sm text-muted mt-8">Sample data</p>
+        <button type="button" onClick={onTryAgain} disabled={acting} className="btn-primary w-full mt-4 !py-4 text-lg">
+          Try again, same rule
+        </button>
+        <button type="button" onClick={onSmaller} disabled={acting} className="btn w-full mt-3 !py-4 text-lg">
+          Make the rule smaller
+        </button>
+        <p className="text-center mt-5">
+          <button type="button" onClick={onSetAside} disabled={acting} className="text-muted underline underline-offset-4">
+            Set it aside
           </button>
         </p>
+        <p className="text-sm text-muted text-center mt-4">
+          No rule was added to My protocol. Pick one to move on.
+        </p>
       </div>
-      {error && <p className="text-sm mt-3" style={{ color: '#e0607e' }}>{error}</p>}
+    )
+  }
+
+  // Held (or held but no signal yet).
+  return (
+    <div className="mt-6">
+      <div className="card" style={{ background: 'rgba(240,80,110,0.12)', borderColor: 'rgba(240,80,110,0.4)' }}>
+        <div className="flex items-center gap-4">
+          <span
+            className="w-14 h-14 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: '#f0506e' }}
+          >
+            <span className="text-2xl text-white">✓</span>
+          </span>
+          <div>
+            <p className="text-2xl font-bold">Experiment complete</p>
+            <p className="text-sm text-muted mt-1">
+              Day {windowDays} done. You committed and held it. Nice work.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <DayDots startDate={exp.start_date} windowDays={windowDays} dayHeld={effectiveHeld} today={today} />
+      <p className="text-sm text-muted mt-3">{fmtHeldNights(heldCount, windowDays)}</p>
+
+      <div className="card mt-5">
+        <p className="text-xs text-muted uppercase tracking-widest" style={{ color: '#f0506e' }}>
+          {metricMeta.label} · primary
+        </p>
+        <p className="text-4xl font-bold tabular-nums mt-2">
+          {sprintAvg != null ? fmtMetricValue(metricKey, sprintAvg) : '—'}
+        </p>
+        {sprintAvg != null && usual != null && (
+          <p className="text-sm text-muted mt-1">
+            {windowDays}-night average, {fmtChangeVsUsual(metricKey, sprintAvg, usual)}
+          </p>
+        )}
+        {outcome === 'held_no_signal' && (
+          <p className="text-sm mt-2" style={{ color: '#e8c468' }}>
+            Held, but no signal yet: the move stayed within your usual swing.
+          </p>
+        )}
+      </div>
 
       <div className="card mt-4">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-xs text-muted uppercase tracking-widest">{metricMeta.label} · Primary</p>
-          {withinSwing != null && (
-            <span
-              className="text-xs font-semibold rounded-full px-3 py-1 shrink-0"
-              style={withinSwing
-                ? { color: '#9aa0ae', border: '1px solid rgba(255,255,255,0.2)' }
-                : { color: '#e8c468', border: '1px solid #e8c468' }}
-            >
-              {withinSwing ? 'Within typical swing' : 'Outside typical swing'}
-            </span>
-          )}
-        </div>
-        <div className="flex items-baseline justify-between mt-2 gap-2">
-          <p className="text-4xl font-bold tabular-nums">
-            {latestPrimary != null ? fmtVal(template.primary_metric, latestPrimary) : '—'}
-          </p>
-          {primaryDelta != null && baselineAvg != null && (
-            <p className="text-sm text-muted tabular-nums shrink-0 text-right">
-              {latestPrimaryDate && <>{fmtMD(latestPrimaryDate)} · </>}
-              {fmtDelta(template.primary_metric, primaryDelta)} vs starting point {fmtVal(template.primary_metric, baselineAvg).replace(/(\d)\.0\b/, '$1')}
-            </p>
-          )}
-        </div>
-        {secondaries.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-white/10">
-            <p className="text-xs text-muted uppercase tracking-widest mb-3">Also watching</p>
-            <div className="space-y-2.5">
-              {secondaries.map((s) => (
-                <div key={s.key} className="flex items-baseline justify-between gap-2">
-                  <p>{watchLabel(s.key)}</p>
-                  <p className="tabular-nums shrink-0">
-                    {s.latest != null ? (
-                      <>
-                        <span className="font-bold text-lg" style={{ color: '#f0506e' }}>{fmtVal(s.key, s.latest)}</span>
-                        {s.baselineAvg != null && (
-                          <span className="text-sm text-muted ml-2">
-                            {fmtDelta(s.key, s.latest - s.baselineAvg)} vs {fmtVal(s.key, s.baselineAvg).replace(/(\d)\.0\b/, '$1')}
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      <span className="text-muted text-sm">—</span>
-                    )}
-                  </p>
-                </div>
-              ))}
-            </div>
+        <EvidenceTag tier={tier} />
+      </div>
+
+      <div className="card mt-4">
+        <p className="text-xs text-muted uppercase tracking-widest" style={{ color: '#f0506e' }}>
+          Also moved, change vs usual
+        </p>
+        {alsoMoved.length === 0 ? (
+          <p className="text-sm text-muted mt-2">No secondary readings yet.</p>
+        ) : (
+          <div className="mt-2 space-y-2.5">
+            {alsoMoved.map((m) => (
+              <div key={m.key} className="flex items-baseline justify-between gap-2">
+                <p>{METRIC_DRAWER_LABELS[m.key] ?? m.key}</p>
+                <p className="tabular-nums shrink-0">
+                  <span className="font-bold text-lg">{fmtMetricValue(m.key, m.value!)}</span>
+                  {m.usual != null && (
+                    <span className="text-sm text-muted ml-2">{fmtDeltaShort(m.key, m.value! - m.usual)}</span>
+                  )}
+                </p>
+              </div>
+            ))}
           </div>
         )}
-        {dayNum === 1 && (
-          <p className="text-sm text-muted mt-4">
-            Last night, before you started. Your first experiment reading arrives tomorrow.
-            One night is noisy, so the verdict uses all {windowDays} days.
-          </p>
-        )}
+        <AllMetrics
+          metrics={drawerMetrics}
+          primaryKey={metricKey}
+          pinned={pinned}
+          onTogglePin={onTogglePin}
+          totalCount={drawerMetrics.filter((m) => m.value != null).length}
+        />
       </div>
 
-      <div className="card mt-4 p-5">
-        <div className="flex justify-between items-center">
-          <p className="text-xs text-muted uppercase tracking-widest">Baseline held (last 10 days)</p>
-          {baselineHeldPct != null && (
-            <p className="text-sm font-bold" style={{ color: baselineHeldPct >= 0.9 ? '#7ee2a8' : '#e8c468' }}>{Math.round(baselineHeldPct * 100)}%</p>
-          )}
-        </div>
-        <p className="mt-1 text-xs text-muted">The baseline has to stay stable for the verdict to count. Below your gate, the verdict is capped at inconclusive.</p>
+      <p className="text-muted mt-6 mb-3">Was it easy to keep?</p>
+      <div className="grid grid-cols-3 gap-0 rounded-xl overflow-hidden border" style={{ borderColor: '#4a5160' }}>
+        {(Object.keys(SUSTAINABILITY_LABELS) as SustainabilityKey[]).map((k) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => onSustainability(k)}
+            className="py-3 font-semibold"
+            style={sustainability === k
+              ? { background: '#f0506e', color: '#fff' }
+              : { background: 'transparent', color: '#9aa0ae' }}
+          >
+            {SUSTAINABILITY_LABELS[k]}
+          </button>
+        ))}
       </div>
 
-      <div className="card mt-4 p-5">
-        <p className="text-xs text-muted uppercase tracking-widest">Verdict</p>
-        {!verdictOpen ? (
-          <p className="mt-2 text-sm text-muted">
-            Verdict unlocks {fmtMD(exp.end_date)} – decisions on day {windowDays}.
-          </p>
-        ) : suggestion ? (
-          <>
-            <div className="mt-3 p-4 rounded-lg" style={{ background: '#22262f' }}>
-              <p className="text-sm font-bold text-white">
-                Suggested: {suggestion.verdict === 'keep' ? 'Keep it' : suggestion.verdict === 'extend' ? 'Extend 5 days' : suggestion.verdict === 'drop' ? 'Drop it' : 'Inconclusive'}
-              </p>
-              <ul className="mt-2 space-y-1">
-                {suggestion.reasons.map((r, i) => (
-                  <li key={i} className="text-sm text-muted">· {r}</li>
-                ))}
-              </ul>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {VERDICT_BUTTONS.map((b) => {
-                const isSuggested = suggestion.verdict === b.kind
-                const disabled =
-                  acting ||
-                  (template.verdict_driver === false && b.kind !== 'inconclusive') ||
-                  (b.kind === 'extend' && alreadyExtended)
-                return (
-                  <button
-                    key={b.kind}
-                    onClick={() => recordVerdict(b.kind)}
-                    disabled={disabled}
-                    className="btn"
-                    style={{
-                      background: isSuggested ? '#e0607e' : 'transparent',
-                      border: isSuggested ? 'none' : '1px solid #4a5160',
-                      color: isSuggested ? '#fff' : '#9aa0ae',
-                      opacity: disabled && !isSuggested ? 0.4 : 1,
-                    }}
-                  >
-                    {b.label}{b.kind === 'extend' && alreadyExtended ? ' (used)' : ''}
-                  </button>
-                )
-              })}
-            </div>
-            {template.verdict_driver === false && (
-              <p className="mt-2 text-xs" style={{ color: '#e8c468' }}>This level is informational only in v1, so only Inconclusive is available.</p>
-            )}
-          </>
-        ) : null}
-      </div>
-    </main>
+      <button type="button" onClick={onKeep} disabled={acting} className="btn-primary w-full mt-6 !py-4 text-lg">
+        {nextStepLabel ? `Move to ${nextStepLabel}` : 'Keep in My protocol'}
+      </button>
+      <button type="button" onClick={onExtend} disabled={acting} className="btn w-full mt-3 !py-4 text-lg">
+        Extend 3 days
+      </button>
+    </div>
   )
 }

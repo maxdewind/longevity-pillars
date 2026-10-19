@@ -10,6 +10,11 @@ export const BASELINE_DAYS = 7
 export const MIN_BASELINE_DAYS = 4
 export const EXPERIMENT_ADHERENCE_MIN = 0.7
 export const EXTEND_DAYS = 5
+// Spec v0.1: 7-day sprints with an optional 3-day extension. New experiments
+// use SPRINT_DAYS; WINDOW_DAYS remains the fallback for legacy 12-day rows.
+export const SPRINT_DAYS = 7
+export const SPRINT_EXTEND_DAYS = 3
+export const SPRINT_HELD_TO_KEEP = 6
 
 export type MetricKey =
   | 'weight_lb'
@@ -35,7 +40,13 @@ export interface ExperimentTemplate {
   secondary_metrics: string[] | null
   evidence_note: string | null
   sources_url: string | null
+  watch_verifiable: boolean | null
+  ramp_steps: { label: string; detail: string }[] | null
 }
+
+export type ExperimentStatus = 'active' | 'done' | 'maintained' | 'retired'
+export type ExperimentVerdict = 'held' | 'not_held' | 'held_no_signal' | null
+export type Sustainability = 'easy' | 'ok' | 'hard' | null
 
 export interface LevelsExperiment {
   id: string
@@ -46,12 +57,20 @@ export interface LevelsExperiment {
   start_date: string
   end_date: string
   duration_days: number
-  status: 'active' | 'done'
+  status: ExperimentStatus
   verdict: string | null
   mode: string | null
   window_days: number | null
   observed_days_required: number | null
   template_level: number | null
+  sustainability: Sustainability
+  blockers: string[] | null
+  pinned_metrics: string[] | null
+  ramp_steps: { label: string; detail: string }[] | null
+  ramp_step: number | null
+  reread_date: string | null
+  extended_days: number | null
+  primary_metric: string | null
 }
 
 export const METRIC_LABELS: Record<MetricKey, { label: string; unit: string; fmt: (v: number) => string }> = {

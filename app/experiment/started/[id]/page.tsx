@@ -5,61 +5,95 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { errMsg, type ExperimentTemplate, type LevelsExperiment } from '@/lib/levels'
-import { primaryPhrase } from '@/lib/firstRun'
+import { fetchBaselineValues, fetchProfileExtras } from '@/lib/baseline'
+import { type MetricKey, REFERENCE_RANGES } from '@/lib/referenceRanges'
 import { fmtMD } from '@/lib/format'
+import { AllMetrics, type DrawerMetric } from '@/components/sprint/AllMetrics'
+import { fmtMetricValue, METRIC_DRAWER_LABELS } from '@/lib/sprint'
 
-import { loadRunPrefs, saveRunPrefs } from '@/lib/runPrefs'
-
-function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      onClick={() => onChange(!on)}
-      className="w-14 h-8 rounded-full shrink-0 transition-colors"
-      style={{ background: on ? '#f0506e' : 'rgba(255,255,255,0.15)' }}
-    >
-      <span
-        className="block w-6 h-6 rounded-full bg-white transition-transform"
-        style={{ transform: on ? 'translateX(30px)' : 'translateX(4px)' }}
-      />
-    </button>
-  )
-}
+type CompareMode = 'off' | 'healthy' | 'top'
 
 export default function StartedPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const [exp, setExp] = useState<LevelsExperiment | null>(null)
   const [template, setTemplate] = useState<ExperimentTemplate | null>(null)
-  const [prefs, setPrefs] = useState({ morningCommitment: true, eveningCheckin: true })
+  const [primaryUsual, setPrimaryUsual] = useState<number | null>(null)
+  const [primarySwing, setPrimarySwing] = useState<number | null>(null)
+  const [nightCount, setNightCount] = useState(0)
+  const [excludedCount, setExcludedCount] = useState(0)
+  const [rangeLabel, setRangeLabel] = useState('')
+  const [rangeStart, setRangeStart] = useState('')
+  const [secondaries, setSecondaries] = useState<DrawerMetric[]>([])
+  const [drawerMetrics, setDrawerMetrics] = useState<DrawerMetric[]>([])
+  const [compare, setCompare] = useState<CompareMode>('off')
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    setPrefs(loadRunPrefs())
     const load = async () => {
       try {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) { setLoaded(true); return }
         const { data: eRow, error: eErr } = await supabase
-          .from('experiments')
-          .select('*')
-          .eq('id', params.id)
-          .eq('user_id', user.id)
-          .single()
+          .from('experiments').select('*')
+          .eq('id', params.id).eq('user_id', user.id).single()
         if (eErr) throw eErr
         const e = eRow as LevelsExperiment
         setExp(e)
+
+        let t: ExperimentTemplate | null = null
         if (e.template_level != null) {
           const { data: tRow } = await supabase
-            .from('experiment_templates')
-            .select('*')
-            .eq('level_number', e.template_level)
-            .maybeSingle()
-          setTemplate((tRow as ExperimentTemplate | null) ?? null)
+            .from('experiment_templates').select('*')
+            .eq('level_number', e.template_level).maybeSingle()
+          t = (tRow as ExperimentTemplate | null) ?? null
+          setTemplate(t)
         }
+        const metricKey = (t?.primary_metric ?? 'sleep_hours') as MetricKey
+        const profLb = await fetchProfileExtras(supabase, user.id)
+        const lb = profLb.lookback
+
+        const dayVals = await fetchBaselineValues(supabase, user.id, metricKey, e.start_date, lb)
+        const vals = dayVals.map((r) => r.value)
+        if (vals.length > 0) {
+          const avg = vals.reduce((a, b) => a + b, 0) / vals.length
+          const sd = Math.sqrt(vals.reduce((a, b) => a + (b - avg) ** 2, 0) / vals.length)
+          setPrimaryUsual(avg)
+          setPrimarySwing(sd)
+        }
+        setNightCount(vals.length)
+        if (dayVals.length > 0) {
+          const sorted = [...dayVals].map((r) => r.date).sort()
+          setRangeStart(sorted[0])
+          setRangeLabel(sorted[sorted.length - 1])
+        }
+        // Excluded = lookback window days minus valid nights (failed/implausible watch data).
+        setExcludedCount(Math.max(0, lb - vals.length))
+
+        const secKeys = (t?.secondary_metrics ?? []).filter((k) => k !== metricKey).slice(0, 3)
+        const secReads = await Promise.all(secKeys.map(async (k) => {
+          const bv = await fetchBaselineValues(supabase, user.id, k as MetricKey, e.start_date, lb)
+          const vv = bv.map((r) => r.value)
+          return {
+            key: k,
+            value: null,
+            usual: vv.length > 0 ? vv.reduce((a, b) => a + b, 0) / vv.length : null,
+          } as DrawerMetric
+        }))
+        setSecondaries(secReads.filter((s) => s.usual != null))
+
+        const drawerKeys = ['sleep_hours', 'bedtime', 'deep_sleep_min', 'overnight_hrv_ms', 'overnight_hr_bpm', 'overnight_spo2', 'weight_lb', 'vo2max']
+        const reads = await Promise.all(drawerKeys.map(async (k) => {
+          const bv = await fetchBaselineValues(supabase, user.id, k as MetricKey, e.start_date, lb)
+          const vv = bv.map((r) => r.value)
+          return {
+            key: k,
+            value: null,
+            usual: vv.length > 0 ? vv.reduce((a, b) => a + b, 0) / vv.length : null,
+          } as DrawerMetric
+        }))
+        setDrawerMetrics(reads)
       } catch (e) {
         setError(errMsg(e))
       }
@@ -68,108 +102,111 @@ export default function StartedPage({ params }: { params: { id: string } }) {
     load()
   }, [params.id])
 
-  const setPref = (k: 'morningCommitment' | 'eveningCheckin', v: boolean) => {
-    setPrefs((p) => {
-      const next = { ...p, [k]: v }
-      saveRunPrefs(next)
-      return next
-    })
-  }
-
   if (!loaded) return <main className="p-6 text-muted">Loading…</main>
   if (error || !exp) {
     return (
       <main className="max-w-md mx-auto px-4 pt-8 pb-28">
         <div className="card">
           <p className="text-sm" style={{ color: '#e0607e' }}>{error ?? 'Experiment not found.'}</p>
-          <Link href="/experiment/app/levels" className="btn-primary w-full block text-center mt-4">
-            Back to Experiments
+          <Link href="/experiment/app/protocol" className="btn-primary w-full block text-center mt-4">
+            Back to My protocol
           </Link>
         </div>
       </main>
     )
   }
 
-  const windowDays = exp.window_days ?? 12
-  const steps = [
-    {
-      title: 'Commit in the morning, hold it at night',
-      sub: 'Morning promise is optional. In the evening, tap Held if you stuck to it.',
-    },
-    {
-      title: 'We read Apple Health overnight',
-      sub: 'No logging. Wear your watch to bed.',
-    },
-    {
-      title: `${fmtMD(exp.end_date)}: your verdict`,
-      sub: `Held 10 of ${windowDays} days, then we compare with your starting point.`,
-    },
-  ]
+  const metricKey = (template?.primary_metric ?? 'sleep_hours') as string
+  const primaryLabel = METRIC_DRAWER_LABELS[metricKey] ?? template?.primary_metric ?? 'Primary'
+  const ref = REFERENCE_RANGES[metricKey as MetricKey]
+
+  const compareCaption =
+    compare === 'off' || !ref ? null
+    : compare === 'healthy'
+      ? `Healthy range: ${ref.population.label}`
+      : `Top percentile: ${ref.aspirational.label}`
 
   return (
     <main className="max-w-md mx-auto px-4 pt-10 pb-28">
-      <p className="text-xs text-muted uppercase tracking-widest">Experiment started</p>
-      <h1 className="text-4xl font-bold mt-3 leading-tight">You&apos;re in. Day 1 starts now.</h1>
+      <p className="text-xs text-muted uppercase tracking-widest">Longevity Pillars</p>
+      <h1 className="text-4xl font-bold mt-3 leading-tight">This is your starting point</h1>
+      {nightCount > 0 && (
+        <p className="text-muted mt-2">
+          Last {nightCount} valid nights, {fmtMD(rangeStart)} to {fmtMD(rangeLabel)}
+        </p>
+      )}
 
       <div className="card mt-6">
-        <p className="font-semibold text-xl">{exp.title}</p>
-        <p className="text-sm text-muted mt-1">
-          {windowDays} days · {fmtMD(exp.start_date)} to {fmtMD(exp.end_date)}
+        <p className="text-xs uppercase tracking-widest" style={{ color: '#f0506e' }}>
+          {primaryLabel} · primary metric
         </p>
-        {template && (
-          <p className="text-sm mt-2">
-            <span className="font-bold">Primary:</span>{' '}
-            <span className="text-muted">{primaryPhrase(template)}</span>
+        <p className="mt-2">
+          <span className="text-5xl font-bold tabular-nums">
+            {primaryUsual != null ? fmtMetricValue(metricKey, primaryUsual) : '—'}
+          </span>{' '}
+          <span className="text-muted text-xl">usual</span>
+        </p>
+        {primarySwing != null && (
+          <p className="text-sm text-muted mt-1">
+            typical swing ± {fmtMetricValue(metricKey, primarySwing).replace(/^[−+]?/, '')} · locked for the 7-day sprint
           </p>
+        )}
+        {compareCaption && (
+          <p className="text-sm mt-2" style={{ color: '#e8c468' }}>{compareCaption}</p>
         )}
       </div>
 
-      <p className="text-xs text-muted uppercase tracking-widest mt-8 mb-4">What happens next</p>
-      <div>
-        {steps.map((s, i) => (
-          <div key={s.title} className="flex gap-4">
-            <div className="flex flex-col items-center">
-              <span
-                className="w-9 h-9 rounded-full border flex items-center justify-center font-bold shrink-0"
-                style={{ borderColor: '#f0506e', color: '#f0506e' }}
-              >
-                {i + 1}
-              </span>
-              {i < steps.length - 1 && (
-                <span className="w-px flex-1" style={{ background: 'rgba(240,80,110,0.35)', minHeight: 24 }} />
-              )}
+      <div className="card mt-4">
+        <p className="text-xs uppercase tracking-widest" style={{ color: '#f0506e' }}>Also tracked</p>
+        <div className="mt-3 space-y-2.5">
+          {secondaries.map((s) => (
+            <div key={s.key} className="flex items-baseline justify-between gap-2">
+              <p className="text-muted">{METRIC_DRAWER_LABELS[s.key] ?? s.key}</p>
+              <p className="tabular-nums shrink-0">
+                <span className="font-bold text-lg">{s.usual != null ? fmtMetricValue(s.key, s.usual) : '—'}</span>{' '}
+                <span className="text-sm text-muted">usual</span>
+              </p>
             </div>
-            <div className="pb-6">
-              <p className="font-semibold text-lg">{s.title}</p>
-              <p className="text-sm text-muted">{s.sub}</p>
-            </div>
-          </div>
+          ))}
+        </div>
+        <AllMetrics
+          metrics={drawerMetrics.map((m) => ({ ...m, value: m.usual }))}
+          primaryKey={metricKey}
+          pinned={[]}
+          onTogglePin={() => {}}
+          totalCount={drawerMetrics.filter((m) => m.usual != null).length}
+        />
+      </div>
+
+      <p className="font-semibold mt-6 mb-3" style={{ color: '#f0506e' }}>Compare my numbers</p>
+      <div className="grid grid-cols-3 rounded-xl overflow-hidden border" style={{ borderColor: '#4a5160' }}>
+        {(['off', 'healthy', 'top'] as CompareMode[]).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setCompare(m)}
+            className="py-3 font-semibold text-sm"
+            style={compare === m
+              ? { background: '#f0506e', color: '#fff' }
+              : { background: 'transparent', color: '#9aa0ae' }}
+          >
+            {m === 'off' ? 'Off' : m === 'healthy' ? 'Healthy range' : 'Top percentile'}
+          </button>
         ))}
       </div>
 
-      <div className="card space-y-5">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="font-semibold text-lg">Morning commitment</p>
-            <p className="text-sm text-muted">Optional. A quick promise to yourself at 07:30.</p>
-          </div>
-          <Toggle on={prefs.morningCommitment} onChange={(v) => setPref('morningCommitment', v)} />
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="font-semibold text-lg">Evening check-in</p>
-            <p className="text-sm text-muted">Tap Held at 19:30.</p>
-          </div>
-          <Toggle on={prefs.eveningCheckin} onChange={(v) => setPref('eveningCheckin', v)} />
-        </div>
-      </div>
+      {excludedCount > 0 && (
+        <p className="text-sm text-muted mt-4">
+          {excludedCount} {excludedCount === 1 ? 'night' : 'nights'} excluded: watch data missing
+        </p>
+      )}
 
       <button
         type="button"
         onClick={() => router.push(`/experiment/app/levels/${exp.id}`)}
-        className="btn-primary w-full mt-8 !py-4 text-lg"
+        className="btn-primary w-full mt-10 !py-4 text-lg"
       >
-        Go to Today
+        Review the rule
       </button>
     </main>
   )

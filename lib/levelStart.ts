@@ -2,7 +2,7 @@
 // the track='levels' protocol row, enforces one-active-run, inserts the
 // experiment. Shared by the Levels tab prereg and the onboarding pillar picker.
 
-import { addDays, WINDOW_DAYS, OBSERVED_REQUIRED } from './levels'
+import { addDays, SPRINT_DAYS } from './levels'
 import { todayISO } from './format'
 
 interface TemplateLike {
@@ -10,6 +10,7 @@ interface TemplateLike {
   title: string
   detail: string
   pillars: string[] | null
+  primary_metric?: string | null
 }
 
 export async function startLevelExperiment(
@@ -77,14 +78,15 @@ export async function startLevelExperiment(
       title: t.title,
       hypothesis: hypothesis.trim() || t.detail,
       start_date: startDate,
-      end_date: addDays(startDate, WINDOW_DAYS - 1),
-      duration_days: WINDOW_DAYS,
+      end_date: addDays(startDate, SPRINT_DAYS - 1),
+      duration_days: SPRINT_DAYS,
       baseline_snapshot: [],
       status: 'active',
       mode: 'levels',
-      window_days: WINDOW_DAYS,
-      observed_days_required: OBSERVED_REQUIRED,
+      window_days: SPRINT_DAYS,
+      observed_days_required: SPRINT_DAYS - 2,
       template_level: t.level_number,
+      primary_metric: t.primary_metric ?? null,
     })
     .select('id')
     .single()
