@@ -168,7 +168,6 @@ export default function SmallerRulePage({ params }: { params: { id: string } }) 
           <p className="text-sm text-muted mt-4">
             Hold a step on 6 of 7 nights to move up to the next one.
           </p>
-          <p className="text-center text-sm text-muted mt-8">Sample data</p>
           <button
             type="button"
             onClick={() => startRamp(steps)}

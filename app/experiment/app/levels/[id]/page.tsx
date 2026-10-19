@@ -530,7 +530,6 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
                 </button>
               </>
             )}
-            <p className="text-center text-sm text-muted mt-6">Sample data</p>
           </div>
         </>
       )}
@@ -671,7 +670,6 @@ function VerdictView(args: {
           })}
         </div>
 
-        <p className="text-center text-sm text-muted mt-8">Sample data</p>
         <button type="button" onClick={onTryAgain} disabled={acting} className="btn-primary w-full mt-4 !py-4 text-lg">
           Try again, same rule
         </button>

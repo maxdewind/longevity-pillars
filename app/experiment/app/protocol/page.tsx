@@ -355,7 +355,6 @@ export default function MyProtocolPage() {
         </>
       )}
 
-      <p className="text-center text-sm text-muted mt-10">Sample data</p>
       {error && <p className="text-sm mt-3" style={{ color: '#e0607e' }}>{error}</p>}
     </main>
   )
