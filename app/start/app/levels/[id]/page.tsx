@@ -3,14 +3,18 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { todayISO, parseSleepHM } from '@/lib/format'
+import { todayISO } from '@/lib/format'
+import { fmtMD } from '@/lib/format'
 import {
-  WINDOW_DAYS, OBSERVED_REQUIRED, MIN_BASELINE_DAYS, EXTEND_DAYS,
-  addDays, diffDays, errMsg, fmtD, readSignal, suggestVerdict,
+  WINDOW_DAYS, OBSERVED_REQUIRED, EXTEND_DAYS,
+  addDays, diffDays, errMsg, suggestVerdict, readSignal,
   METRIC_LABELS,
   type ExperimentTemplate, type LevelsExperiment, type SignalRead, type VerdictKind, type VerdictSuggestion,
 } from '@/lib/levels'
 import { fetchBaselineValues, fetchProfileExtras } from '@/lib/baseline'
+import { watchLabel } from '@/lib/firstRun'
+import { loadRunPrefs } from '@/lib/runPrefs'
+import { type MetricKey } from '@/lib/referenceRanges'
 
 const VERDICT_BUTTONS: { kind: VerdictKind; label: string }[] = [
   { kind: 'keep', label: 'Keep it' },
@@ -19,17 +23,40 @@ const VERDICT_BUTTONS: { kind: VerdictKind; label: string }[] = [
   { kind: 'inconclusive', label: 'Inconclusive' },
 ]
 
-const fmtShiftVal = (metric: string, v: number): string => {
-  const sign = v > 0 ? '+' : ''
+function fmtVal(metric: string, v: number): string {
   switch (metric) {
-    case 'weight_lb': return `${sign}${v.toFixed(1)} lb`
-    case 'sleep_hours': return `${sign}${Math.round(v * 60)} min`
-    case 'deep_sleep_min': return `${sign}${Math.round(v)} min`
-    case 'overnight_hr_bpm': return `${sign}${Math.round(v)} bpm`
-    case 'overnight_hrv_ms': return `${sign}${Math.round(v)} ms`
-    case 'vo2max': return `${sign}${v.toFixed(1)}`
-    default: return `${sign}${v.toFixed(1)}`
+    case 'weight_lb': return `${v.toFixed(1)} lb`
+    case 'sleep_hours': {
+      const h = Math.floor(v)
+      const m = Math.round((v - h) * 60)
+      return `${h}h ${m}m`
+    }
+    case 'deep_sleep_min': return `${Math.round(v)} min`
+    case 'overnight_hr_bpm': return `${Math.round(v)} bpm`
+    case 'overnight_hrv_ms': return `${Math.round(v)} ms`
+    case 'vo2max': return `${Math.round(v)}`
+    default: return `${v.toFixed(1)}`
   }
+}
+
+function fmtDelta(metric: string, d: number): string {
+  const sign = d > 0 ? '+' : d < 0 ? '−' : ''
+  const a = Math.abs(d)
+  switch (metric) {
+    case 'weight_lb': return `${sign}${a.toFixed(1)}`
+    case 'sleep_hours': return `${sign}${Math.round(a * 60)} min`
+    case 'deep_sleep_min': return `${sign}${Math.round(a)} min`
+    case 'overnight_hr_bpm': return `${sign}${Math.round(a)}`
+    case 'overnight_hrv_ms': return `${sign}${Math.round(a)}`
+    case 'vo2max': return `${sign}${a.toFixed(1)}`
+    default: return `${sign}${a.toFixed(1)}`
+  }
+}
+
+interface SecondaryRead {
+  key: string
+  latest: number | null
+  baselineAvg: number | null
 }
 
 export default function LevelRunPage({ params }: { params: { id: string } }) {
@@ -38,17 +65,22 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
   const [signal, setSignal] = useState<SignalRead | null>(null)
   const [suggestion, setSuggestion] = useState<VerdictSuggestion | null>(null)
   const [heldToday, setHeldToday] = useState(false)
+  const [committedToday, setCommittedToday] = useState(false)
   const [dayHeld, setDayHeld] = useState<Record<string, boolean>>({})
   const [observedDays, setObservedDays] = useState(0)
   const [observedRequired, setObservedRequired] = useState(OBSERVED_REQUIRED)
   const [baselineHeldPct, setBaselineHeldPct] = useState<number | null>(null)
-  const [metricValue, setMetricValue] = useState('')
-  const [savedMsg, setSavedMsg] = useState<string | null>(null)
+  const [baselineAvg, setBaselineAvg] = useState<number | null>(null)
+  const [baselineSd, setBaselineSd] = useState<number | null>(null)
+  const [latestPrimary, setLatestPrimary] = useState<number | null>(null)
+  const [secondaries, setSecondaries] = useState<SecondaryRead[]>([])
+  const [morningCommitment, setMorningCommitment] = useState(true)
   const [loaded, setLoaded] = useState(false)
   const [acting, setActing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    setMorningCommitment(loadRunPrefs().morningCommitment)
     const load = async () => {
       try {
         const supabase = createClient()
@@ -79,11 +111,16 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
         const req = e.observed_days_required ?? OBSERVED_REQUIRED
         setObservedRequired(req)
 
-        // Baseline: the user's lookback window before start, minus excluded days.
         const profLb = await fetchProfileExtras(supabase, user.id)
         const lb = profLb.lookback
         const baselineDayVals = await fetchBaselineValues(supabase, user.id, metricKey, e.start_date, lb)
         const baselineVals = baselineDayVals.map((r) => r.value)
+        if (baselineVals.length > 0) {
+          const avg = baselineVals.reduce((a, b) => a + b, 0) / baselineVals.length
+          const sd = Math.sqrt(baselineVals.reduce((a, b) => a + (b - avg) ** 2, 0) / baselineVals.length)
+          setBaselineAvg(avg)
+          setBaselineSd(sd)
+        }
 
         const { data: entries } = await supabase
           .from('metric_entries')
@@ -97,21 +134,50 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
         const observedVals = all.map((r) => Number(r.value))
         const observedDates = new Set(all.map((r) => r.entry_date))
         setObservedDays(observedDates.size)
+        setLatestPrimary(
+          observedVals.length > 0
+            ? observedVals[observedVals.length - 1]
+            : baselineVals.length > 0 ? baselineVals[baselineVals.length - 1] : null,
+        )
+
+        // Secondary ("also watching") metrics: baseline avg + latest in-window reading.
+        const secKeys = (t.secondary_metrics ?? []).filter((k) => k !== metricKey).slice(0, 4)
+        const secReads: SecondaryRead[] = await Promise.all(secKeys.map(async (k) => {
+          const [bVals, { data: sEntries }] = await Promise.all([
+            fetchBaselineValues(supabase, user.id, k as MetricKey, e.start_date, lb),
+            supabase.from('metric_entries').select('entry_date, value')
+              .eq('user_id', user.id).eq('metric_key', k)
+              .gte('entry_date', e.start_date).lte('entry_date', windowEnd).order('entry_date'),
+          ])
+          const b = bVals.map((r) => r.value)
+          const s = ((sEntries as { entry_date: string; value: number }[] | null) ?? []).map((r) => Number(r.value))
+          return {
+            key: k,
+            latest: s.length > 0 ? s[s.length - 1] : (b.length > 0 ? b[b.length - 1] : null),
+            baselineAvg: b.length > 0 ? b.reduce((a, x) => a + x, 0) / b.length : null,
+          }
+        }))
+        setSecondaries(secReads)
 
         const sig = readSignal(t.primary_metric, t.threshold_direction, baselineVals, observedVals)
         setSignal(sig)
 
         const { data: checks } = await supabase
           .from('protocol_checks')
-          .select('log_date, held')
+          .select('log_date, held, committed')
           .eq('user_id', user.id)
           .eq('protocol_id', e.protocol_id)
           .gte('log_date', e.start_date)
           .lte('log_date', windowEnd)
         const heldMap: Record<string, boolean> = {}
-        ;((checks as { log_date: string; held: boolean }[] | null) ?? []).forEach((c) => { heldMap[c.log_date] = c.held })
+        let committed = false
+        ;((checks as { log_date: string; held: boolean; committed: boolean }[] | null) ?? []).forEach((c) => {
+          heldMap[c.log_date] = c.held
+          if (c.log_date === today && c.committed) committed = true
+        })
         setDayHeld(heldMap)
         setHeldToday(heldMap[today] === true)
+        setCommittedToday(committed)
 
         const windowDays = e.window_days ?? WINDOW_DAYS
         const elapsed = Math.min(diffDays(e.start_date, windowEnd) + 1, windowDays)
@@ -119,9 +185,6 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
           ? Object.values(heldMap).filter(Boolean).length / elapsed
           : null
 
-        // Baseline stability: trailing 10 days across enabled track='levels'
-        // protocols, excluding only this run's own row. Kept levels count
-        // toward the baseline once adopted.
         const expPids = new Set([e.protocol_id])
         const { data: protos } = await supabase
           .from('protocols')
@@ -178,65 +241,42 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
     load()
   }, [params.id])
 
-  const toggleHeld = async () => {
+  const upsertCheck = async (patch: { held?: boolean; committed?: boolean }) => {
     if (!exp || acting) return
     setActing(true)
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not signed in.')
-      const next = !heldToday
       const { error } = await supabase.from('protocol_checks').upsert(
-        { user_id: user.id, protocol_id: exp.protocol_id, log_date: todayISO(), held: next },
+        { user_id: user.id, protocol_id: exp.protocol_id, log_date: todayISO(), ...patch },
         { onConflict: 'user_id,protocol_id,log_date' },
       )
       if (error) throw error
-      setHeldToday(next)
-      setDayHeld((prev) => ({ ...prev, [todayISO()]: next }))
     } catch (e) {
       setError(errMsg(e))
     }
     setActing(false)
   }
 
-  const logMetric = async () => {
-    if (!exp || !template) return
-    let v: number | null
-    if (template.primary_metric === 'sleep_hours') {
-      v = parseSleepHM(metricValue)
-      if (v == null) { setSavedMsg('Enter hours and minutes like 7:30 or 730.'); return }
-    } else {
-      v = parseFloat(metricValue)
-      if (Number.isNaN(v)) { setSavedMsg('Enter a number.'); return }
-    }
-    setActing(true)
-    setSavedMsg(null)
-    try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not signed in.')
-      const today = todayISO()
-      const { data: existing } = await supabase
-        .from('metric_entries')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('entry_date', today)
-        .eq('metric_key', template.primary_metric)
-        .limit(1)
-      const row = { user_id: user.id, entry_date: today, metric_key: template.primary_metric, value: v, source: 'manual' }
-      if ((existing as { id: string }[] | null)?.length) {
-        const { error } = await supabase.from('metric_entries').update({ value: v, source: 'manual' }).eq('id', (existing as { id: string }[])[0].id)
-        if (error) throw error
-      } else {
-        const { error } = await supabase.from('metric_entries').insert(row)
-        if (error) throw error
-      }
-      setMetricValue('')
-      setSavedMsg('Saved. This day now counts as observed.')
-    } catch (e) {
-      setSavedMsg(errMsg(e))
-    }
-    setActing(false)
+  const toggleHeld = async () => {
+    const next = !heldToday
+    await upsertCheck({ held: next })
+    setHeldToday(next)
+    setDayHeld((prev) => ({ ...prev, [todayISO()]: next }))
+  }
+
+  const toggleCommitted = async () => {
+    const next = !committedToday
+    await upsertCheck({ committed: next })
+    setCommittedToday(next)
+  }
+
+  const skipToday = async () => {
+    await upsertCheck({ held: false, committed: false })
+    setHeldToday(false)
+    setCommittedToday(false)
+    setDayHeld((prev) => ({ ...prev, [todayISO()]: false }))
   }
 
   const recordVerdict = async (kind: VerdictKind) => {
@@ -275,7 +315,7 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
     setActing(false)
   }
 
-  if (!loaded) return <main className="p-6" style={{ color: '#9aa0ae' }}>Loading…</main>
+  if (!loaded) return <main className="p-6 text-muted">Loading…</main>
   if (error && !exp) {
     return (
       <main className="p-6 max-w-xl mx-auto">
@@ -287,7 +327,7 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
   if (!exp || !template) {
     return (
       <main className="p-6 max-w-xl mx-auto">
-        <p className="text-sm" style={{ color: '#9aa0ae' }}>Level run not found.</p>
+        <p className="text-sm text-muted">Level run not found.</p>
         <Link href="/start/app/levels" className="btn mt-4 inline-block" style={{ textDecoration: 'none' }}>Back to Levels</Link>
       </main>
     )
@@ -298,114 +338,183 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
   const dayNum = Math.min(Math.max(diffDays(exp.start_date, today) + 1, 1), windowDays)
   const verdictOpen = today >= exp.end_date || dayNum >= windowDays
   const metricMeta = METRIC_LABELS[template.primary_metric]
-  const signalColor = signal?.strength === 'signal' ? '#7ee2a8' : signal?.strength === 'suggestive' ? '#e8c468' : '#9aa0ae'
   const heldCount = Object.values(dayHeld).filter(Boolean).length
   const alreadyExtended = windowDays > WINDOW_DAYS
+  const withinSwing = latestPrimary != null && baselineAvg != null && baselineSd != null
+    ? Math.abs(latestPrimary - baselineAvg) <= baselineSd
+    : null
+  const primaryDelta = latestPrimary != null && baselineAvg != null ? latestPrimary - baselineAvg : null
 
   return (
-    <main className="p-6 max-w-xl mx-auto pb-28">
-      <Link href="/start/app/levels" className="text-sm" style={{ color: '#9aa0ae', textDecoration: 'none' }}>← Levels</Link>
-      <p className="text-xs font-semibold tracking-wider mt-3" style={{ color: '#e0607e' }}>LEVEL {template.level_number}</p>
-      <h1 className="text-2xl font-bold mt-1">{exp.title}</h1>
-      {exp.hypothesis && <p className="mt-2 italic text-sm" style={{ color: '#9aa0ae' }}>{exp.hypothesis}</p>}
-      {error && <p className="mt-3 text-sm" style={{ color: '#e0607e' }}>{error}</p>}
+    <main className="max-w-md mx-auto px-4 pt-8 pb-28">
+      <p className="text-xs text-muted uppercase tracking-widest">Day {dayNum} of {windowDays}</p>
+      <h1 className="text-3xl font-bold mt-2">{exp.title}</h1>
 
-      <div className="card mt-4 p-5">
-        <div className="flex justify-between text-sm">
-          <span>Day {dayNum} of {windowDays}</span>
-          <span style={{ color: '#e0607e', fontWeight: 700 }}>{Math.round((dayNum / windowDays) * 100)}%</span>
-        </div>
-        <div className="mt-2" style={{ height: 10, borderRadius: 999, background: '#2c313d' }}>
-          <div style={{ width: `${(dayNum / windowDays) * 100}%`, height: '100%', borderRadius: 999, background: '#e0607e' }} />
-        </div>
-        <p className="mt-2 text-sm" style={{ color: '#9aa0ae' }}>
-          {observedDays} of {observedRequired} observed days logged
-        </p>
-        <div className="mt-4 flex gap-2 flex-wrap">
-          {Array.from({ length: windowDays }, (_, i) => addDays(exp.start_date, i)).map((d) => (
-            <span key={d} title={`${fmtD(d)}${d === today ? ' (today)' : ''}`} style={{
-              width: 24, height: 24, borderRadius: '50%',
-              background: dayHeld[d] ? '#e0607e' : 'transparent',
-              border: `1px solid ${dayHeld[d] ? '#e0607e' : d === today ? '#e0607e' : '#4a5160'}`,
-            }} />
-          ))}
-        </div>
-        <p className="mt-2 text-xs" style={{ color: '#9aa0ae' }}>{heldCount} of {windowDays} days held · {fmtD(exp.start_date)} – {fmtD(exp.end_date)}</p>
+      <div className="flex gap-2 mt-4">
+        {Array.from({ length: windowDays }, (_, i) => addDays(exp.start_date, i)).map((d) => {
+          const isToday = d === today
+          const held = dayHeld[d]
+          return (
+            <span
+              key={d}
+              title={d}
+              className="rounded-full"
+              style={{
+                width: 26, height: 26,
+                background: held ? '#f0506e' : 'transparent',
+                border: `1.5px solid ${held || isToday ? '#f0506e' : '#4a5160'}`,
+              }}
+            />
+          )
+        })}
       </div>
+      <p className="text-sm text-muted mt-3">
+        Held {heldCount} of {windowDays} · Data days {observedDays} of {observedRequired} · Verdict {fmtMD(exp.end_date)}
+      </p>
 
-      <div className="card mt-4 p-5">
-        <p className="text-xs font-semibold tracking-wider" style={{ color: '#9aa0ae' }}>TODAY</p>
-        <button onClick={toggleHeld} disabled={acting} className="btn w-full mt-3" style={{
-          background: heldToday ? '#e0607e' : 'transparent',
-          border: heldToday ? 'none' : '1px solid #e0607e',
-          color: heldToday ? '#fff' : '#e0607e',
-        }}>
-          {heldToday ? '✓ Held today' : 'Mark today held'}
-        </button>
-      </div>
-
-      <div className="card mt-4 p-5">
-        <p className="text-xs font-semibold tracking-wider" style={{ color: '#9aa0ae' }}>{metricMeta.label.toUpperCase()} VS BASELINE</p>
-        {signal && signal.baselineMedian != null ? (
-          <>
-            <p className="mt-2 text-3xl font-bold">
-              <span style={{ color: signalColor }}>
-                {signal.shift != null ? fmtShiftVal(template.primary_metric, signal.shift) : '–'}
-              </span>
-              <span className="text-xl"> vs baseline</span>
-            </p>
-            <p className="mt-1 text-xs" style={{ color: '#9aa0ae' }}>
-              Baseline median {metricMeta.fmt(signal.baselineMedian)} · {signal.directionDays} of {signal.observedDays} days moving {template.threshold_direction === 'down' ? 'down' : 'up'}
-            </p>
-            <p className="mt-2 text-sm font-semibold" style={{ color: signalColor }}>
-              {signal.strength === 'signal' ? 'Signal' : signal.strength === 'suggestive' ? 'Suggestive' : 'No signal'}
-            </p>
-            <p className="mt-1 text-sm" style={{ color: '#9aa0ae' }}>{signal.text}</p>
-          </>
+      <div className="card mt-5" style={{ borderColor: '#f0506e', borderWidth: 1.5 }}>
+        <p className="text-xs text-muted uppercase tracking-widest">Today</p>
+        <p className="font-semibold text-xl mt-2 leading-snug">{template.detail}</p>
+        {morningCommitment ? (
+          <div className="grid grid-cols-2 gap-3 mt-4">
+            <div>
+              <button
+                type="button"
+                onClick={toggleCommitted}
+                disabled={acting}
+                className="w-full rounded-xl py-3.5 font-semibold text-lg"
+                style={committedToday
+                  ? { background: 'rgba(126,226,168,0.15)', border: '1.5px solid #7ee2a8', color: '#7ee2a8' }
+                  : { background: 'transparent', border: '1.5px solid rgba(255,255,255,0.2)', color: '#fff' }}
+              >
+                {committedToday ? 'Committed' : 'Commit'}
+              </button>
+              <p className="text-xs text-muted text-center mt-2">
+                {committedToday ? 'Promised this morning' : 'Tap this morning'}
+              </p>
+            </div>
+            <div>
+              <button
+                type="button"
+                onClick={toggleHeld}
+                disabled={acting}
+                className="w-full rounded-xl py-3.5 font-semibold text-lg"
+                style={heldToday
+                  ? { background: '#f0506e', border: 'none', color: '#fff' }
+                  : { background: 'transparent', border: '1.5px solid rgba(255,255,255,0.2)', color: '#fff' }}
+              >
+                {heldToday ? 'Held ✓' : 'Held'}
+              </button>
+              <p className="text-xs text-muted text-center mt-2">
+                {heldToday ? 'Stuck to it' : 'Tap tonight'}
+              </p>
+            </div>
+          </div>
         ) : (
-          <p className="mt-2 text-sm" style={{ color: '#9aa0ae' }}>
-            Log your 7-day average {metricMeta.label.toLowerCase()} daily. The signal reads against your 7-day pre-level median once data lands.
+          <button
+            type="button"
+            onClick={toggleHeld}
+            disabled={acting}
+            className="btn-primary w-full mt-4 !py-4 text-lg"
+          >
+            {heldToday ? 'Held ✓ — tap to undo' : 'Mark today held'}
+          </button>
+        )}
+        <p className="text-center mt-4">
+          <button
+            type="button"
+            onClick={skipToday}
+            className="text-sm text-muted underline underline-offset-4"
+          >
+            Skip today (sick or travelling)
+          </button>
+        </p>
+      </div>
+      {error && <p className="text-sm mt-3" style={{ color: '#e0607e' }}>{error}</p>}
+
+      <div className="card mt-4">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-muted uppercase tracking-widest">{metricMeta.label} · Primary</p>
+          {withinSwing != null && (
+            <span
+              className="text-xs font-semibold rounded-full px-3 py-1 shrink-0"
+              style={withinSwing
+                ? { color: '#9aa0ae', border: '1px solid rgba(255,255,255,0.2)' }
+                : { color: '#e8c468', border: '1px solid #e8c468' }}
+            >
+              {withinSwing ? 'Within typical swing' : 'Outside typical swing'}
+            </span>
+          )}
+        </div>
+        <div className="flex items-baseline justify-between mt-2 gap-2">
+          <p className="text-4xl font-bold tabular-nums">
+            {latestPrimary != null ? fmtVal(template.primary_metric, latestPrimary) : '—'}
+          </p>
+          {primaryDelta != null && baselineAvg != null && (
+            <p className="text-sm text-muted tabular-nums shrink-0">
+              {fmtDelta(template.primary_metric, primaryDelta)} vs starting point {fmtVal(template.primary_metric, baselineAvg).replace(/(\d)\.0\b/, '$1')}
+            </p>
+          )}
+        </div>
+        {secondaries.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-white/10">
+            <p className="text-xs text-muted uppercase tracking-widest mb-3">Also watching</p>
+            <div className="space-y-2.5">
+              {secondaries.map((s) => (
+                <div key={s.key} className="flex items-baseline justify-between gap-2">
+                  <p>{watchLabel(s.key)}</p>
+                  <p className="tabular-nums shrink-0">
+                    {s.latest != null ? (
+                      <>
+                        <span className="font-bold text-lg" style={{ color: '#f0506e' }}>{fmtVal(s.key, s.latest)}</span>
+                        {s.baselineAvg != null && (
+                          <span className="text-sm text-muted ml-2">
+                            {fmtDelta(s.key, s.latest - s.baselineAvg)} vs {fmtVal(s.key, s.baselineAvg).replace(/(\d)\.0\b/, '$1')}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-muted text-sm">—</span>
+                    )}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {dayNum === 1 && (
+          <p className="text-sm text-muted mt-4">
+            Last night, before you started. Your first experiment reading arrives tomorrow.
+            One night is noisy, so the verdict uses all {windowDays} days.
           </p>
         )}
-        <div className="mt-3 flex gap-2">
-          <input
-            value={metricValue}
-            onChange={(e) => setMetricValue(e.target.value)}
-            placeholder={template.primary_metric === 'sleep_hours' ? '7-day average sleep (7:30)' : `7-day average ${metricMeta.label.toLowerCase()} (${metricMeta.unit})`}
-            inputMode="decimal"
-            className="card flex-1 p-3"
-            style={{ background: '#22262f', border: '1px solid #2c313d', color: '#fff', outline: 'none' }}
-          />
-          <button onClick={logMetric} disabled={acting} className="btn">Log</button>
-        </div>
-        {savedMsg && <p className="mt-2 text-sm" style={{ color: '#7ee2a8' }}>{savedMsg}</p>}
       </div>
 
       <div className="card mt-4 p-5">
         <div className="flex justify-between items-center">
-          <p className="text-xs font-semibold tracking-wider" style={{ color: '#9aa0ae' }}>BASELINE HELD (LAST 10 DAYS)</p>
+          <p className="text-xs text-muted uppercase tracking-widest">Baseline held (last 10 days)</p>
           {baselineHeldPct != null && (
             <p className="text-sm font-bold" style={{ color: baselineHeldPct >= 0.9 ? '#7ee2a8' : '#e8c468' }}>{Math.round(baselineHeldPct * 100)}%</p>
           )}
         </div>
-        <p className="mt-1 text-xs" style={{ color: '#9aa0ae' }}>The baseline has to stay stable for the verdict to count. Below your gate, the verdict is capped at inconclusive.</p>
+        <p className="mt-1 text-xs text-muted">The baseline has to stay stable for the verdict to count. Below your gate, the verdict is capped at inconclusive.</p>
       </div>
 
       <div className="card mt-4 p-5">
-        <p className="text-xs font-semibold tracking-wider" style={{ color: '#9aa0ae' }}>VERDICT</p>
+        <p className="text-xs text-muted uppercase tracking-widest">Verdict</p>
         {!verdictOpen ? (
-          <p className="mt-2 text-sm" style={{ color: '#9aa0ae' }}>
-            Verdict unlocks {fmtD(exp.end_date)} – decisions on day {windowDays}.
+          <p className="mt-2 text-sm text-muted">
+            Verdict unlocks {fmtMD(exp.end_date)} – decisions on day {windowDays}.
           </p>
         ) : suggestion ? (
           <>
-            <div className="mt-3 p-4" style={{ background: '#22262f', borderRadius: 8 }}>
-              <p className="text-sm font-bold" style={{ color: '#fff' }}>
+            <div className="mt-3 p-4 rounded-lg" style={{ background: '#22262f' }}>
+              <p className="text-sm font-bold text-white">
                 Suggested: {suggestion.verdict === 'keep' ? 'Keep it' : suggestion.verdict === 'extend' ? 'Extend 5 days' : suggestion.verdict === 'drop' ? 'Drop it' : 'Inconclusive'}
               </p>
               <ul className="mt-2 space-y-1">
                 {suggestion.reasons.map((r, i) => (
-                  <li key={i} className="text-sm" style={{ color: '#9aa0ae' }}>· {r}</li>
+                  <li key={i} className="text-sm text-muted">· {r}</li>
                 ))}
               </ul>
             </div>

@@ -10,20 +10,35 @@ import {
   loadFirstRunSelection, clearFirstRunSelection, hypothesisFor,
   type FirstRunSelection,
 } from '@/lib/firstRun'
+import { fetchBaselineValues, fetchProfileExtras } from '@/lib/baseline'
+import { todayISO, fmtSleepHM } from '@/lib/format'
+import { type MetricKey } from '@/lib/referenceRanges'
 
 const RULES = [
   { title: 'Change one thing', sub: "Don't start anything else new." },
-  { title: 'Hold it most days', sub: 'At least 10 of the 12 days.' },
+  { title: 'Hold it most days', sub: 'At least 10 of 12 days. Weekly habits: 80% of planned sessions.' },
   { title: 'Keep life normal', sub: 'Same routines otherwise.' },
   { title: 'Log your data', sub: 'Wear your watch to bed.' },
   { title: 'Stop if unwell', sub: 'Wellness information, not medical advice.' },
 ]
+
+function fmtStartingPoint(metric: MetricKey, avg: number): string {
+  switch (metric) {
+    case 'weight_lb': return `${avg.toFixed(0)} lb`
+    case 'sleep_hours': return fmtSleepHM(avg)
+    case 'deep_sleep_min': return `${Math.round(avg)} min`
+    case 'overnight_hr_bpm': return `${Math.round(avg)} bpm`
+    case 'overnight_hrv_ms': return `${Math.round(avg)} ms`
+    case 'vo2max': return `${Math.round(avg)}`
+  }
+}
 
 export default function StartGroundRulesPage() {
   const [signedIn, setSignedIn] = useState<boolean | null>(null)
   const [selection, setSelection] = useState<FirstRunSelection | null>(null)
   const [template, setTemplate] = useState<ExperimentTemplate | null>(null)
   const [hypothesis, setHypothesis] = useState('')
+  const [startingPoint, setStartingPoint] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -44,9 +59,35 @@ export default function StartGroundRulesPage() {
           .maybeSingle()
         const tpl = (t as ExperimentTemplate | null) ?? null
         setTemplate(tpl)
-        if (tpl) setHypothesis(hypothesisFor(tpl.title, tpl))
+        if (tpl) {
+          setHypothesis(hypothesisFor(tpl.title, tpl))
+          try {
+            const prof = await fetchProfileExtras(supabase, user.id)
+            const vals = await fetchBaselineValues(supabase, user.id, tpl.primary_metric, todayISO(), prof.lookback)
+            if (vals.length > 0) {
+              const avg = vals.reduce((a, v) => a + v.value, 0) / vals.length
+              setStartingPoint(
+                `Starting point for this experiment: ${fmtStartingPoint(tpl.primary_metric, avg)}, your ${prof.lookback} days before.`,
+              )
+            }
+          } catch {
+            /* starting point stays hidden */
+          }
+        }
       } else {
         setHypothesis(sel.hypothesis)
+        try {
+          const prof = await fetchProfileExtras(supabase, user.id)
+          const vals = await fetchBaselineValues(supabase, user.id, sel.primary_metric, todayISO(), prof.lookback)
+          if (vals.length > 0) {
+            const avg = vals.reduce((a, v) => a + v.value, 0) / vals.length
+            setStartingPoint(
+              `Starting point for this experiment: ${fmtStartingPoint(sel.primary_metric, avg)}, your ${prof.lookback} days before.}`,
+            )
+          }
+        } catch {
+          /* starting point stays hidden */
+        }
       }
     }
     load()
@@ -87,7 +128,7 @@ export default function StartGroundRulesPage() {
       }
       const id = await startLevelExperiment(supabase, user.id, tpl, hypothesis)
       clearFirstRunSelection()
-      window.location.href = `/start/app/levels/${id}`
+      window.location.href = `/start/started/${id}`
     } catch (e) {
       setError(errMsg(e))
     }
@@ -125,6 +166,7 @@ export default function StartGroundRulesPage() {
       <div className="card mt-6" style={{ borderColor: '#f0506e', borderWidth: 1.5 }}>
         <p className="text-xs text-muted uppercase tracking-widest">Your hypothesis</p>
         <p className="font-semibold text-lg mt-2 leading-snug">{hypothesis || '…'}</p>
+        {startingPoint && <p className="text-sm text-muted mt-2">{startingPoint}</p>}
       </div>
 
       <div className="mt-6 space-y-4">

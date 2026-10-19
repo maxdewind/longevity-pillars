@@ -5,8 +5,11 @@ export function todayISO(d: Date = new Date()): string { return `${d.getFullYear
 export function formatMoney(n: number): string { return '$' + n.toFixed(2) }
 
 /** Decimal hours -> "H:MM" (e.g. 7.5 -> "7:30"). Used for sleep entry/display. */
-export function fmtSleepHM(hours: number): string {
-  const totalMin = Math.round(hours * 60)
+export function fmtMD(iso: string): string {
+  return new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+export function fmtSleepHM(hours: number): string {  const totalMin = Math.round(hours * 60)
   return `${Math.floor(totalMin / 60)}:${pad(totalMin % 60)}`
 }
 

@@ -145,8 +145,8 @@ export default function StartLookbackPage() {
 
   return (
     <main className="max-w-md mx-auto px-4 pt-8 pb-28">
-      <p className="text-xs text-muted uppercase tracking-widest">Step 1 of 3 · Your normal</p>
-      <h1 className="text-3xl font-bold mt-3 leading-tight">We&apos;ll learn your normal from Apple Health</h1>
+      <p className="text-xs text-muted uppercase tracking-widest">Step 1 of 3 · Your starting point</p>
+      <h1 className="text-3xl font-bold mt-3 leading-tight">We&apos;ll learn your starting point from Apple Health</h1>
       <p className="text-muted mt-3">
         How far back should we look? Longer is steadier. Shorter is more current.
       </p>
