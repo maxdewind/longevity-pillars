@@ -1,7 +1,7 @@
 // Pulls the Apple Health daily mirror (a link-shared Google Sheet written by
 // the daily sync job) and upserts it into metric_entries as source='apple_health'.
 // Sheet tab "daily", columns: date | weight_lb | sleep_hours | deep_sleep_min |
-// overnight_hr_bpm | overnight_hrv_ms | vo2max. No identifiers, just numbers.
+// overnight_hr_bpm | overnight_hrv_ms | vo2max | bedtime. No identifiers, just numbers.
 
 const METRIC_COLS = [
   'weight_lb',
@@ -10,6 +10,7 @@ const METRIC_COLS = [
   'overnight_hr_bpm',
   'overnight_hrv_ms',
   'vo2max',
+  'bedtime',
 ] as const
 
 export const SHEET_ID =

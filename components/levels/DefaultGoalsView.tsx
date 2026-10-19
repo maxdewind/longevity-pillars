@@ -18,6 +18,7 @@ const LABEL: Record<MetricKey, string> = {
   overnight_hr_bpm: 'Overnight heart rate',
   overnight_hrv_ms: 'Overnight HRV',
   vo2max: 'VO2max',
+  bedtime: 'Bedtime',
 }
 
 function fmtTarget(k: MetricKey, v: number): string {

@@ -20,6 +20,7 @@ const PLACEHOLDERS: Record<MetricKey, string> = {
   overnight_hr_bpm: 'e.g. 52',
   overnight_hrv_ms: 'e.g. 48',
   vo2max: 'Optional, e.g. 41',
+  bedtime: 'e.g. 10:30 PM',
 }
 
 /** Metrics entered as a rolling 7-day average rather than a point in time. */

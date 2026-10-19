@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { errMsg, safetyConflicts, type ExperimentTemplate } from '@/lib/levels'
+import { errMsg, safetyConflicts, fmtBedtime, type ExperimentTemplate } from '@/lib/levels'
 import { startLevelExperiment } from '@/lib/levelStart'
 import { ensureStarterBaseline } from '@/lib/starterBaseline'
 import {
@@ -30,6 +30,7 @@ function fmtStartingPoint(metric: MetricKey, avg: number): string {
     case 'overnight_hr_bpm': return `${Math.round(avg)} bpm`
     case 'overnight_hrv_ms': return `${Math.round(avg)} ms`
     case 'vo2max': return `${Math.round(avg)}`
+    case 'bedtime': return fmtBedtime(avg)
   }
 }
 

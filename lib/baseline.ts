@@ -4,7 +4,7 @@
 // Default goals answer: "given where I am and the population bands, what is a
 // sensible first target?" Rules per metric are documented in defaultGoalFor.
 
-import { median } from './levels'
+import { median, fmtBedtime } from './levels'
 import { fmtSleepHM } from './format'
 import type { MetricKey, BandChoice } from './referenceRanges'
 
@@ -114,6 +114,7 @@ export const BAND_BAR: Record<MetricKey, {
   overnight_hr_bpm: { min: 35, max: 100, pop: [60, 100], asp: [40, 55], direction: 'lower' },
   overnight_hrv_ms: { min: 10, max: 150, pop: [20, 70], asp: [70, 110], direction: 'higher' },
   vo2max: { min: 20, max: 70, direction: 'higher' },
+  bedtime: { min: 18, max: 26, direction: 'lower' },
 }
 
 /** Band for a concrete target value (shared by the slider form and defaults). */
@@ -166,9 +167,11 @@ export function defaultGoalFor(k: MetricKey, avg: number, heightCm: number | nul
     overnight_hr_bpm: 'Overnight heart rate',
     overnight_hrv_ms: 'Overnight HRV',
     vo2max: 'VO2max',
+    bedtime: 'Bedtime',
   }
   const fmt = (v: number) =>
     k === 'sleep_hours' ? fmtSleepHM(v)
+    : k === 'bedtime' ? fmtBedtime(v)
     : k === 'weight_lb' ? `${v.toFixed(1)} lb`
     : k === 'deep_sleep_min' ? `${Math.round(v)} min`
     : k === 'overnight_hr_bpm' ? `${Math.round(v)} bpm`
@@ -221,5 +224,11 @@ export function defaultGoalFor(k: MetricKey, avg: number, heightCm: number | nul
     }
     case 'vo2max':
       return goal(Math.round(avg * 10) / 10, 'Hold your current level.')
+    case 'bedtime': {
+      const t = Math.round(avg * 4) / 4
+      const adj = (h: number) => (h < 12 ? h + 24 : h)
+      if (adj(avg) > 22.5) return goal(22.5, 'Lights out by 10:30 PM.')
+      return goal(t, 'Hold your current bedtime.')
+    }
   }
 }

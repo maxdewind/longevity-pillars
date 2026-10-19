@@ -34,6 +34,7 @@ const CARD_LABEL: Record<MetricKey, string> = {
   overnight_hr_bpm: 'Overnight HR',
   overnight_hrv_ms: 'HRV',
   vo2max: 'VO2max',
+  bedtime: 'Bedtime',
 }
 
 interface Entry { entry_date: string; metric_key: string; value: number; source: string }

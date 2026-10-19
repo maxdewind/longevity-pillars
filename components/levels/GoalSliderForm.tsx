@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { fmtSleepHM } from '@/lib/format'
 import { bandForTargetValue, weightBandsLb } from '@/lib/baseline'
+import { fmtBedtime } from '@/lib/levels'
 import { REFERENCE_RANGES, REFERENCE_DISCLAIMER, METRIC_ORDER, type MetricKey, type BandChoice } from '@/lib/referenceRanges'
 
 interface Props {
@@ -33,6 +34,7 @@ const SLIDER: Record<MetricKey, SliderDef> = {
   overnight_hr_bpm: { min: 35, max: 100, step: 1, fmt: (v) => `${Math.round(v)} bpm`, direction: 'lower', bands: { pop: [60, 100], asp: [40, 55] } },
   overnight_hrv_ms: { min: 10, max: 150, step: 1, fmt: (v) => `${Math.round(v)} ms`, direction: 'higher', bands: { pop: [20, 70], asp: [70, 110] } },
   vo2max: { min: 20, max: 70, step: 0.5, fmt: (v) => v.toFixed(1), direction: 'higher' },
+  bedtime: { min: 19, max: 25, step: 0.25, fmt: (v) => fmtBedtime(v), direction: 'lower' },
 }
 
 /** "183", "183cm", or 5'10" -> cm. Null when unreadable. */

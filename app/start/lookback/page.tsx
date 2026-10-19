@@ -34,6 +34,7 @@ const ROW_LABEL: Record<MetricKey, string> = {
   overnight_hr_bpm: 'Overnight heart rate',
   overnight_hrv_ms: 'Overnight HRV',
   vo2max: 'VO2max',
+  bedtime: 'Bedtime',
 }
 
 interface Entry { entry_date: string; metric_key: string }

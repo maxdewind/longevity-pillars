@@ -11,6 +11,7 @@ export type MetricKey =
   | 'overnight_hr_bpm'
   | 'overnight_hrv_ms'
   | 'vo2max'
+  | 'bedtime'
 
 export type BandChoice = 'population' | 'aspirational'
 
@@ -129,5 +130,20 @@ export const REFERENCE_RANGES: Record<MetricKey, MetricRangeDef> = {
       label: 'Top 10% for your age and sex',
       source: 'Aspirational percentile framing',
     },
+  },
+  bedtime: {
+    key: 'bedtime',
+    label: 'Bedtime',
+    unit: 'hours',
+    population: {
+      label: 'Consistent, early enough for 7+ hours',
+      source: 'General sleep hygiene guidance',
+      note: 'Sleep onset from the watch, in decimal hours.',
+    },
+    aspirational: {
+      label: 'Fixed early bedtime, held nightly',
+      source: 'Aspirational framing',
+    },
+    soft: true,
   },
 }

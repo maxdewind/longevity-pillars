@@ -18,6 +18,7 @@ export type MetricKey =
   | 'overnight_hr_bpm'
   | 'overnight_hrv_ms'
   | 'vo2max'
+  | 'bedtime'
 
 export interface ExperimentTemplate {
   level_number: number
@@ -60,6 +61,15 @@ export const METRIC_LABELS: Record<MetricKey, { label: string; unit: string; fmt
   overnight_hr_bpm: { label: 'Overnight heart rate', unit: 'bpm', fmt: (v) => `${Math.round(v)} bpm` },
   overnight_hrv_ms: { label: 'Overnight HRV', unit: 'ms', fmt: (v) => `${Math.round(v)} ms` },
   vo2max: { label: 'VO2max', unit: 'ml/kg/min', fmt: (v) => `${v.toFixed(1)}` },
+  bedtime: { label: 'Bedtime', unit: 'hours', fmt: (v) => fmtBedtime(v) },
+}
+
+export const fmtBedtime = (v: number): string => {
+  const h24 = ((Math.floor(v) % 24) + 24) % 24
+  const m = Math.round((v - Math.floor(v)) * 60)
+  const ampm = h24 >= 12 ? 'PM' : 'AM'
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12
+  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`
 }
 
 export const median = (xs: number[]): number | null => {
@@ -104,6 +114,7 @@ const shiftThreshold = (metric: MetricKey, baselineMedian: number | null): numbe
     case 'sleep_hours': return 1 / 3 // 20 minutes
     case 'deep_sleep_min': return 15
     case 'vo2max': return null
+    case 'bedtime': return 0.5 // 30 minutes earlier
   }
 }
 
@@ -252,6 +263,7 @@ const fmtShift = (metric: MetricKey, v: number): string => {
     case 'sleep_hours': return `${Math.round(v * 60)} min`
     case 'deep_sleep_min': return `${Math.round(v)} min`
     case 'vo2max': return `${v.toFixed(1)}`
+    case 'bedtime': return `${Math.round(v * 60)} min earlier`
   }
 }
 

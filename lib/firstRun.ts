@@ -47,6 +47,7 @@ const METRIC_SHORT: Record<MetricKey, string> = {
   overnight_hr_bpm: 'overnight heart rate',
   overnight_hrv_ms: 'HRV',
   vo2max: 'VO2max',
+  bedtime: 'bedtime',
 }
 
 const METRIC_MINE: Record<MetricKey, string> = {
@@ -56,6 +57,7 @@ const METRIC_MINE: Record<MetricKey, string> = {
   overnight_hr_bpm: 'my overnight heart rate',
   overnight_hrv_ms: 'my overnight HRV',
   vo2max: 'my VO2max',
+  bedtime: 'my bedtime',
 }
 
 const METRIC_UNIT: Record<MetricKey, string> = {
@@ -65,6 +67,7 @@ const METRIC_UNIT: Record<MetricKey, string> = {
   overnight_hr_bpm: 'bpm',
   overnight_hrv_ms: 'ms',
   vo2max: '',
+  bedtime: '',
 }
 
 function amountFor(primary_metric: MetricKey, threshold_value: number | null): { amt: string; unit: string } {
@@ -140,6 +143,7 @@ const METRIC_WATCH_LABEL: Record<MetricKey, string> = {
   overnight_hr_bpm: 'overnight heart rate',
   overnight_hrv_ms: 'HRV',
   vo2max: 'VO2max',
+  bedtime: 'bedtime',
 }
 
 /** Short display label for the "Also watching" line. */
