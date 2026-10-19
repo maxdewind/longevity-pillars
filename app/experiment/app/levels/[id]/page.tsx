@@ -418,8 +418,7 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
       {ruleDetail && <p className="text-sm text-muted mt-1">Rule: {ruleDetail}</p>}
 
       {mode === 'verdict' ? (
-        <VerdictView
-          exp={exp} heldCount={heldCount} windowDays={windowDays}
+        <VerdictView          exp={exp} heldCount={heldCount} windowDays={windowDays}
           sprintAvg={sprintAvg} usual={usual} swing={swing}
           outcome={outcome} metricKey={metricKey}
           primaryEntries={primaryEntries} effectiveHeld={effectiveHeld}
@@ -436,28 +435,27 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
         />
       ) : (
         <>
-          <h2 className="text-3xl font-bold mt-4">
+          {/* Primary metric always visible at the top. */}
+          <div className="card mt-4">
+            <p className="text-xs text-muted uppercase tracking-widest">{metricMeta.label} · primary</p>
+            <p className="text-4xl font-bold tabular-nums mt-2">
+              {latestVal != null ? fmtMetricValue(metricKey, latestVal) : '—'}
+            </p>
+            {usual != null && latestVal != null && (
+              <p className="text-sm text-muted mt-1">
+                {fmtChangeVsUsual(metricKey, latestVal, usual)}
+                {withinUsualSwing(latestVal, usual, swing) ? ', within your usual swing' : ''}
+              </p>
+            )}
+          </div>
+
+          <h2 className="text-3xl font-bold mt-6">
             Day {dayNum} of {windowDays}{mode === 'early' ? ': on track' : ''}
           </h2>
           <DayDots startDate={exp.start_date} windowDays={windowDays} dayHeld={effectiveHeld} today={today} />
           <p className="text-sm text-muted mt-3">
             {fmtHeldNights(heldCount, Math.min(dayNum, windowDays))} so far
           </p>
-
-          {mode === 'early' && (
-            <div className="card mt-5">
-              <p className="text-xs text-muted uppercase tracking-widest">{metricMeta.label} · primary</p>
-              <p className="text-4xl font-bold tabular-nums mt-2">
-                {latestVal != null ? fmtMetricValue(metricKey, latestVal) : '—'}
-              </p>
-              {usual != null && latestVal != null && (
-                <p className="text-sm text-muted mt-1">
-                  {fmtChangeVsUsual(metricKey, latestVal, usual)}
-                  {withinUsualSwing(latestVal, usual, swing) ? ', within your usual swing' : ''}
-                </p>
-              )}
-            </div>
-          )}
 
           <div className="card mt-4">
             <div className="flex items-center justify-between gap-2">
