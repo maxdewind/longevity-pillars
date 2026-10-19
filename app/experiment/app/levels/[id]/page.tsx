@@ -151,11 +151,13 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
             .gte('entry_date', e.start_date).lte('entry_date', windowEnd).order('entry_date'),
         ])
         const bv = b.map((r) => r.value)
-        const sv = ((sEntries as DayEntry[] | null) ?? []).map((r) => Number(r.value))
+        const sRows = ((sEntries as (DayEntry & { entry_date: string })[] | null) ?? [])
+        const sv = sRows.map((r) => Number(r.value))
         return {
           key: k,
           value: sv.length > 0 ? sv[sv.length - 1] : null,
           usual: bv.length > 0 ? bv.reduce((a, x) => a + x, 0) / bv.length : null,
+          valueDate: sRows.length > 0 ? sRows[sRows.length - 1].entry_date : null,
         } as DrawerMetric
       }))
       setDrawerMetrics(reads)
@@ -228,6 +230,8 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
   const values = primaryEntries.map((r) => r.value)
   const sprintAvg = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : null
   const latestVal = values.length > 0 ? values[values.length - 1] : null
+  const latestDate = primaryEntries.length > 0 ? primaryEntries[primaryEntries.length - 1].entry_date : null
+  const primaryStale = latestDate != null && latestDate !== today
   const verdict = sprintVerdict(heldCount, windowDays)
   const hasSignal = sprintAvg != null && usual != null && swing != null
     ? Math.abs(sprintAvg - usual) > swing
@@ -439,13 +443,22 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
           <div className="card mt-4">
             <p className="text-xs text-muted uppercase tracking-widest">{metricMeta.label} · primary</p>
             <p className="text-4xl font-bold tabular-nums mt-2">
-              {latestVal != null ? fmtMetricValue(metricKey, latestVal) : '—'}
+              {primaryStale ? (
+                <span className="text-muted" title={latestDate ? `Last synced ${latestDate}` : 'Syncing'}>?</span>
+              ) : latestVal != null ? (
+                fmtMetricValue(metricKey, latestVal)
+              ) : (
+                '—'
+              )}
             </p>
-            {usual != null && latestVal != null && (
+            {!primaryStale && usual != null && latestVal != null && (
               <p className="text-sm text-muted mt-1">
                 {fmtChangeVsUsual(metricKey, latestVal, usual)}
                 {withinUsualSwing(latestVal, usual, swing) ? ', within your usual swing' : ''}
               </p>
+            )}
+            {primaryStale && (
+              <p className="text-sm text-muted mt-1">Syncing today's reading…</p>
             )}
           </div>
 
@@ -465,17 +478,26 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
               <p className="text-sm text-muted mt-2">No secondary readings yet.</p>
             ) : (
               <div className="mt-2 space-y-2.5">
-                {alsoMoved.map((m) => (
+                {alsoMoved.map((m) => {
+                  const stale = m.valueDate != null && m.valueDate !== today
+                  return (
                   <div key={m.key} className="flex items-baseline justify-between gap-2">
                     <p>{METRIC_DRAWER_LABELS[m.key] ?? m.key}</p>
                     <p className="tabular-nums shrink-0">
-                      <span className="font-bold text-lg">{fmtMetricValue(m.key, m.value!)}</span>
-                      {m.usual != null && (
-                        <span className="text-sm text-muted ml-2">{fmtDeltaShort(m.key, m.value! - m.usual)}</span>
+                      {stale ? (
+                        <span className="font-bold text-lg text-muted" title={`Last synced ${m.valueDate}`}>?</span>
+                      ) : (
+                        <>
+                          <span className="font-bold text-lg">{fmtMetricValue(m.key, m.value!)}</span>
+                          {m.usual != null && (
+                            <span className="text-sm text-muted ml-2">{fmtDeltaShort(m.key, m.value! - m.usual)}</span>
+                          )}
+                        </>
                       )}
                     </p>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
             {mode === 'early' && (
@@ -489,6 +511,7 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
               pinned={pinned}
               onTogglePin={togglePin}
               totalCount={drawerMetrics.filter((m) => m.value != null).length}
+              today={today}
             />
           </div>
 

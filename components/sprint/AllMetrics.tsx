@@ -62,6 +62,7 @@ export interface DrawerMetric {
   key: string
   value: number | null
   usual: number | null
+  valueDate?: string | null
 }
 
 /**
@@ -75,6 +76,7 @@ export function AllMetrics({
   onTogglePin,
   totalCount,
   compact,
+  today,
 }: {
   metrics: DrawerMetric[]
   primaryKey: string
@@ -82,6 +84,7 @@ export function AllMetrics({
   onTogglePin: (key: string) => void
   totalCount: number
   compact?: boolean
+  today?: string
 }) {
   const [open, setOpen] = useState(false)
   const byKey = new Map(metrics.map((m) => [m.key, m]))
@@ -116,7 +119,8 @@ export function AllMetrics({
               {rows.map((m, i) => {
                 const isPrimary = m.key === primaryKey
                 const isPinned = pinned.includes(m.key)
-                const change = m.usual != null ? fmtChangeVsUsual(m.key, m.value!, m.usual) : null
+                const stale = today != null && m.valueDate != null && m.valueDate !== today
+                const change = !stale && m.usual != null ? fmtChangeVsUsual(m.key, m.value!, m.usual) : null
                 return (
                   <div
                     key={m.key}
@@ -126,8 +130,14 @@ export function AllMetrics({
                     <p>{METRIC_DRAWER_LABELS[m.key] ?? m.key}</p>
                     <div className="flex items-center gap-2 shrink-0">
                       <div className="text-right">
-                        <p className="font-bold text-lg tabular-nums">{fmtMetricValue(m.key, m.value!)}</p>
-                        {change && <p className="text-xs text-muted tabular-nums">{change}</p>}
+                        {stale ? (
+                          <p className="font-bold text-lg tabular-nums text-muted" title={`Last synced ${m.valueDate}`}>?</p>
+                        ) : (
+                          <>
+                            <p className="font-bold text-lg tabular-nums">{fmtMetricValue(m.key, m.value!)}</p>
+                            {change && <p className="text-xs text-muted tabular-nums">{change}</p>}
+                          </>
+                        )}
                       </div>
                       {isPrimary ? (
                         <span

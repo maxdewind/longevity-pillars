@@ -42,7 +42,7 @@ export function evidenceBlurb(tier: EvidenceTier): string {
 export function fmtMetricValue(metric: string, v: number): string {
   switch (metric) {
     case 'weight_lb': return `${v.toFixed(1)} lb`
-    case 'sleep_hours': return `${v.toFixed(1)} h`
+    case 'sleep_hours': return fmtSleepHm(v)
     case 'deep_sleep_min': return `${Math.round(v)} min`
     case 'overnight_hr_bpm': return `${Math.round(v)} bpm`
     case 'overnight_hrv_ms': return `${Math.round(v)} ms`
@@ -51,6 +51,12 @@ export function fmtMetricValue(metric: string, v: number): string {
     case 'bedtime': return fmtBedtimeLevels(v)
     default: return `${v.toFixed(1)}`
   }
+}
+
+/** "6h 57m" format for sleep duration, matching Apple Health. */
+export function fmtSleepHm(v: number): string {
+  const totalMin = Math.round(v * 60)
+  return `${Math.floor(totalMin / 60)}h ${totalMin % 60}m`
 }
 
 /**
