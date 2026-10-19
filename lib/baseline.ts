@@ -71,6 +71,8 @@ export async function fetchBaselineValues(
     .filter((r) => (useSource == null || r.source === useSource) && !excluded.has(r.entry_date))
     .map((r) => ({ date: r.entry_date, value: Number(r.value) }))
     .filter((r) => Number.isFinite(r.value))
+    // Data hygiene (spec v0.1): sleep < 1h is a watch/sync failure, not a real night. Exclude.
+    .filter((r) => metricKey !== 'sleep_hours' || r.value >= 1)
 }
 
 function addDaysIso(iso: string, n: number): string {
