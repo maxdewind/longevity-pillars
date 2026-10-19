@@ -12,6 +12,7 @@ import {
   type ExperimentTemplate, type LevelsExperiment, type SignalRead, type VerdictKind, type VerdictSuggestion,
 } from '@/lib/levels'
 import { fetchBaselineValues, fetchProfileExtras } from '@/lib/baseline'
+import { syncAppleHealthFromSheet } from '@/lib/appleHealthSync'
 import { watchLabel } from '@/lib/firstRun'
 import { loadRunPrefs } from '@/lib/runPrefs'
 import { type MetricKey } from '@/lib/referenceRanges'
@@ -96,6 +97,13 @@ export default function LevelRunPage({ params }: { params: { id: string } }) {
         if (eErr) throw eErr
         const e = eRow as LevelsExperiment
         setExp(e)
+
+        // Best-effort fresh pull from the Apple Health bridge sheet before reading.
+        try {
+          await syncAppleHealthFromSheet(supabase, user.id)
+        } catch {
+          /* offline or sheet not shared yet — read what's in the DB */
+        }
 
         const { data: tRow, error: tErr } = await supabase
           .from('experiment_templates')
