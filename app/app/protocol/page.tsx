@@ -65,6 +65,7 @@ export default function ProtocolPage() {
         .from('protocols')
         .select('*')
         .eq('user_id', user.id)
+        .eq('track', 'classic')
         .order('position', { ascending: true })
 
       const { data: rows } = await supabase

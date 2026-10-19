@@ -29,6 +29,7 @@ export default async function RecordPage() {
       .from('protocols')
       .select('id,label,pillar,position,enabled')
       .eq('user_id', user.id)
+      .eq('track', 'classic')
       .order('position', { ascending: true }),
     supabase
       .from('protocol_checks')

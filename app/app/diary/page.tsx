@@ -51,7 +51,7 @@ export default function DiaryPage() {
       // (resets), held evidence (survives), weakest routine's % of the 90-day
       // target (worst axis blocks the climb).
       const [{ data: protos }, { data: checkRows }] = await Promise.all([
-        supabase.from('protocols').select('id,label,is_mandatory').eq('user_id', user.id),
+        supabase.from('protocols').select('id,label,is_mandatory').eq('user_id', user.id).eq('track', 'classic'),
         supabase.from('protocol_checks').select('protocol_id,held').eq('user_id', user.id),
       ])
       const mandatory = (

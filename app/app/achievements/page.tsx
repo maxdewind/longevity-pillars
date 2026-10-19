@@ -51,6 +51,7 @@ export default function AchievementsPage() {
           .from('protocols')
           .select('id,label,position')
           .eq('user_id', uid)
+          .eq('track', 'classic')
           .eq('enabled', true)
           .order('position', { ascending: true }),
         supabase
