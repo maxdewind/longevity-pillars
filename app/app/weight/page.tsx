@@ -117,13 +117,13 @@ export default function WeightPage() {
                 <circle key={i} cx={d.x} cy={d.y} r="3" fill="#f0506e" />
               ))}
             </svg>
-            <div className="flex justify-between text-xs" style={{ color: '#9aa0ae' }}>
+            <div className="flex justify-between text-xs" style={{ color: '#64748b' }}>
               <span>{formatDate(logs[0].log_date)}</span>
               <span>{formatDate(logs[logs.length - 1].log_date)}</span>
             </div>
           </div>
         ) : (
-          <p className="text-sm" style={{ color: '#9aa0ae' }}>Log a few days to see your trend.</p>
+          <p className="text-sm" style={{ color: '#64748b' }}>Log a few days to see your trend.</p>
         )}
       </section>
 
@@ -131,7 +131,7 @@ export default function WeightPage() {
         <h2 className="text-xl font-bold">Phase targets</h2>
         <div className="card">
           {start === null ? (
-            <p className="text-sm" style={{ color: '#9aa0ae' }}>
+            <p className="text-sm" style={{ color: '#64748b' }}>
               Log your weight to see phase targets.
             </p>
           ) : (
@@ -148,7 +148,7 @@ export default function WeightPage() {
                   )
                 })}
               </div>
-              <p className="text-xs mt-3" style={{ color: '#9aa0ae' }}>
+              <p className="text-xs mt-3" style={{ color: '#64748b' }}>
                 Editable estimates, not promises. Based on a steady 0.5–1% per week pace.
               </p>
             </>

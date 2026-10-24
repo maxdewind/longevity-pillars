@@ -148,16 +148,16 @@ export default function DiaryPage() {
               </p>
             )}
             {summary.mandatoryCount === 0 ? (
-              <p className="text-sm mt-1" style={{ color: '#9aa0ae' }}>
+              <p className="text-sm mt-1" style={{ color: '#64748b' }}>
                 Mark routines as mandatory on the Protocol page to track your 90-day target.
               </p>
             ) : (
               <>
-                <p className="text-sm mt-1 tabular-nums" style={{ color: '#9aa0ae' }}>
+                <p className="text-sm mt-1 tabular-nums" style={{ color: '#64748b' }}>
                   {summary.heldTotal} held across {summary.mandatoryCount} mandatory{' '}
                   {summary.mandatoryCount === 1 ? 'routine' : 'routines'}
                 </p>
-                <p className="text-sm tabular-nums" style={{ color: '#9aa0ae' }}>
+                <p className="text-sm tabular-nums" style={{ color: '#64748b' }}>
                   Weakest: {summary.weakestLabel} at {summary.weakestPct}% of 90
                 </p>
               </>
@@ -165,14 +165,14 @@ export default function DiaryPage() {
           </div>
         )}
         {slips.length === 0 ? (
-          <p className="text-sm" style={{ color: '#9aa0ae' }}>
+          <p className="text-sm" style={{ color: '#64748b' }}>
             No slips logged. The diary keeps the story either way.
           </p>
         ) : (
           slips.map((s) => (
             <div key={s.id} className="card">
               <div className="text-sm font-bold">{formatDate(s.occurred_at.slice(0, 10))}</div>
-              <p className="text-sm mt-1" style={{ color: '#9aa0ae' }}>{s.note || 'No note'}</p>
+              <p className="text-sm mt-1" style={{ color: '#64748b' }}>{s.note || 'No note'}</p>
             </div>
           ))
         )}

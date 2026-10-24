@@ -203,7 +203,7 @@ export default function PositionView({ goals, entries, heightCm = null, compact 
                 return (
                   <div
                     key={key}
-                    className={`rounded-lg border px-3 py-2 ${chosen ? 'border-accent/60 bg-accent/5' : 'border-white/10'}`}
+                    className={`rounded-lg border px-3 py-2 ${chosen ? 'border-accent/60 bg-accent/5' : 'border-slate-200'}`}
                   >
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted">
                       {key === 'population' ? 'Population' : 'Aspirational'}

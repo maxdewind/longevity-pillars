@@ -182,19 +182,19 @@ export default function NewExperimentPage() {
     border: '1px solid',
     borderColor: on ? '#e0607e' : '#2c313d',
     background: on ? '#e0607e' : 'transparent',
-    color: on ? '#fff' : '#9aa0ae',
+    color: on ? '#fff' : '#64748b',
     fontWeight: 600 as const,
     fontSize: 14,
   })
 
-  if (!loaded) return <main className="p-6" style={{ color: '#9aa0ae' }}>Loading…</main>
+  if (!loaded) return <main className="p-6" style={{ color: '#64748b' }}>Loading…</main>
 
   if (hasActive) {
     return (
       <main className="p-6 max-w-xl mx-auto">
         <h1 className="text-2xl font-bold">New Experiment</h1>
         <div className="card mt-6 p-5">
-          <p style={{ color: '#9aa0ae' }}>One experiment at a time. Finish or end the current one before starting a new change.</p>
+          <p style={{ color: '#64748b' }}>One experiment at a time. Finish or end the current one before starting a new change.</p>
           <Link href="/app/experiment" className="btn mt-4 inline-block" style={{ textDecoration: 'none' }}>
             View current experiment
           </Link>
@@ -206,12 +206,12 @@ export default function NewExperimentPage() {
   return (
     <main className="p-6 max-w-xl mx-auto">
       <h1 className="text-2xl font-bold">New Experiment</h1>
-      <p className="mt-1 text-sm" style={{ color: '#9aa0ae' }}>Pre-register one change. The baseline stays the control.</p>
+      <p className="mt-1 text-sm" style={{ color: '#64748b' }}>Pre-register one change. The baseline stays the control.</p>
       {error && (
         <p className="mt-4 text-sm" style={{ color: '#e0607e' }}>{error}</p>
       )}
 
-      <p className="mt-6 text-xs font-semibold tracking-wider" style={{ color: '#9aa0ae' }}>THE ONE CHANGE</p>
+      <p className="mt-6 text-xs font-semibold tracking-wider" style={{ color: '#64748b' }}>THE ONE CHANGE</p>
       <input
         value={change}
         onChange={(e) => setChange(e.target.value)}
@@ -220,7 +220,7 @@ export default function NewExperimentPage() {
         style={{ background: '#22262f', border: '1px solid #2c313d', color: '#fff', outline: 'none' }}
       />
 
-      <p className="mt-6 text-xs font-semibold tracking-wider" style={{ color: '#9aa0ae' }}>PILLAR</p>
+      <p className="mt-6 text-xs font-semibold tracking-wider" style={{ color: '#64748b' }}>PILLAR</p>
       <div className="mt-2 flex gap-2">
         {PILLARS.map((p) => (
           <button key={p.value} onClick={() => setPillar(p.value)} style={chip(pillar === p.value)}>
@@ -229,7 +229,7 @@ export default function NewExperimentPage() {
         ))}
       </div>
 
-      <p className="mt-6 text-xs font-semibold tracking-wider" style={{ color: '#9aa0ae' }}>MY HYPOTHESIS</p>
+      <p className="mt-6 text-xs font-semibold tracking-wider" style={{ color: '#64748b' }}>MY HYPOTHESIS</p>
       <textarea
         value={hypothesis}
         onChange={(e) => setHypothesis(e.target.value)}
@@ -239,7 +239,7 @@ export default function NewExperimentPage() {
         style={{ background: '#22262f', border: '1px solid #2c313d', color: '#fff', outline: 'none', resize: 'vertical' }}
       />
 
-      <p className="mt-6 text-xs font-semibold tracking-wider" style={{ color: '#9aa0ae' }}>DURATION</p>
+      <p className="mt-6 text-xs font-semibold tracking-wider" style={{ color: '#64748b' }}>DURATION</p>
       <div className="mt-2 flex gap-2">
         {[7, 14].map((d) => (
           <button key={d} onClick={() => setDays(d)} style={chip(days === d)}>
@@ -248,7 +248,7 @@ export default function NewExperimentPage() {
         ))}
       </div>
 
-      <p className="mt-6 text-xs font-semibold tracking-wider" style={{ color: '#9aa0ae' }}>START</p>
+      <p className="mt-6 text-xs font-semibold tracking-wider" style={{ color: '#64748b' }}>START</p>
       <div className="mt-2 flex gap-2">
         <button onClick={() => setStartWhen('today')} style={chip(startWhen === 'today')}>
           Today ({startLabel(todayISO())})
@@ -257,11 +257,11 @@ export default function NewExperimentPage() {
           Next Monday ({startLabel(nextMondayISO())})
         </button>
       </div>
-      <p className="mt-2 text-xs" style={{ color: '#9aa0ae' }}>Weeks run {startLabel(startDate)} – {startLabel(endDate)}. Going forward, start on Monday.</p>
+      <p className="mt-2 text-xs" style={{ color: '#64748b' }}>Weeks run {startLabel(startDate)} – {startLabel(endDate)}. Going forward, start on Monday.</p>
 
-      <p className="mt-6 text-xs font-semibold tracking-wider" style={{ color: '#9aa0ae' }}>BASELINE – UNCHECK WHAT YOU WON&apos;T ENFORCE</p>
+      <p className="mt-6 text-xs font-semibold tracking-wider" style={{ color: '#64748b' }}>BASELINE – UNCHECK WHAT YOU WON&apos;T ENFORCE</p>
       <div className="card mt-2 p-4">
-        {baseline.length === 0 && <p className="text-sm" style={{ color: '#9aa0ae' }}>No mandatory routines yet.</p>}
+        {baseline.length === 0 && <p className="text-sm" style={{ color: '#64748b' }}>No mandatory routines yet.</p>}
         {baseline.map((b) => {
           const on = !excluded.has(b.id)
           return (
@@ -283,13 +283,13 @@ export default function NewExperimentPage() {
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                 color: '#fff', fontSize: 13, fontWeight: 700, flexShrink: 0,
               }}>{on ? '✓' : ''}</span>
-              <span className="text-sm" style={{ color: on ? '#fff' : '#9aa0ae' }}>{b.label}</span>
+              <span className="text-sm" style={{ color: on ? '#fff' : '#64748b' }}>{b.label}</span>
             </button>
           )
         })}
       </div>
 
-      <p className="mt-4 text-xs" style={{ color: '#9aa0ae' }}>One change at a time. Everything else stays constant.</p>
+      <p className="mt-4 text-xs" style={{ color: '#64748b' }}>One change at a time. Everything else stays constant.</p>
 
       {error && (
         <p className="mt-4 text-sm" style={{ color: '#e0607e' }}>{error}</p>

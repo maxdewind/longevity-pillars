@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { todayISO } from '@/lib/format'
-import type { Protocol, Experiment } from '@/lib/types'
-import { MASTER_PILLARS, MASTER_DAILY_ROUTINES } from '@/lib/masterProtocol'
+import type { Protocol } from '@/lib/types'
+import { MASTER_PILLARS, MASTER_DAILY_ROUTINES, FIXED_FIRST_MIND_LABEL } from '@/lib/masterProtocol'
 
 interface CheckState {
   committed: boolean
@@ -118,7 +118,6 @@ export default function ProtocolPage() {
   const [history, setHistory] = useState<HistoryRow[]>([])
   const [loading, setLoading] = useState(true)
   const [confirmClear, setConfirmClear] = useState<Protocol | null>(null)
-  const [experiment, setExperiment] = useState<Experiment | null>(null)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [actionError, setActionError] = useState<string | null>(null)
   const [showLibrary, setShowLibrary] = useState(false)
@@ -143,15 +142,16 @@ export default function ProtocolPage() {
         .order('position', { ascending: true })
       if (pErr) setActionError(pErr.message)
 
-      // Seed the master daily pool once. Only runs when no master pillar
-      // is present yet. Kept old routines (Keep positive thoughts,
-      // Morning fuel cap) are not duplicated. Old classic routines that
-      // are not in the master list are retired, not deleted, so their
-      // history stays and they can be restored from the library.
+      // Seed the master daily pool. Missing master routines are inserted
+      // on every load (so a later addition, like the fixed Mind card,
+      // appears for users who already seeded), without duplicating
+      // existing labels. Only on the first master seed are old classic
+      // routines that are not in the master list retired, not deleted,
+      // so their history stays and they can be restored from the library.
       // Changeroom shake is skipped by the user's word, so it retires here.
       let protosList = ((protos as Protocol[] | null) ?? [])
       const hasMaster = protosList.some((p) => ['cardio', 'family', 'preventive', 'accountability'].includes(p.pillar))
-      if (!hasMaster && !pErr) {
+      if (!pErr) {
         const existingLabels = new Set(protosList.map((p) => p.label))
         const toInsert = MASTER_DAILY_ROUTINES
           .filter((r) => !existingLabels.has(r.label))
@@ -161,24 +161,28 @@ export default function ProtocolPage() {
             pillar: r.pillar,
             label: r.label,
             detail: r.detail,
-            position: 100 + idx,
+            position: r.label === FIXED_FIRST_MIND_LABEL ? 99 : 200 + idx,
             enabled: true,
             cadence: 'daily',
           }))
-        const { error: seedErr } = await supabase.from('protocols').insert(toInsert)
-        if (seedErr) {
-          setActionError(seedErr.message)
-        } else {
-          const keepLabels = new Set([...MASTER_DAILY_ROUTINES.map((r) => r.label), 'Keep positive thoughts', 'Morning fuel cap'])
-          const toRetire = protosList.filter((p) => p.enabled && !keepLabels.has(p.label))
-          await Promise.all(toRetire.map((p) => supabase.from('protocols').update({ retired: true }).eq('id', p.id)))
-          const { data: refetched } = await supabase
-            .from('protocols')
-            .select('*')
-            .eq('user_id', user.id)
-            .eq('track', 'classic')
-            .order('position', { ascending: true })
-          if (refetched) protosList = refetched as Protocol[]
+        if (toInsert.length > 0) {
+          const { error: seedErr } = await supabase.from('protocols').insert(toInsert)
+          if (seedErr) {
+            setActionError(seedErr.message)
+          } else {
+            if (!hasMaster) {
+              const keepLabels = new Set([...MASTER_DAILY_ROUTINES.map((r) => r.label), 'Keep positive thoughts', 'Morning fuel cap'])
+              const toRetire = protosList.filter((p) => p.enabled && !keepLabels.has(p.label))
+              await Promise.all(toRetire.map((p) => supabase.from('protocols').update({ retired: true }).eq('id', p.id)))
+            }
+            const { data: refetched } = await supabase
+              .from('protocols')
+              .select('*')
+              .eq('user_id', user.id)
+              .eq('track', 'classic')
+              .order('position', { ascending: true })
+            if (refetched) protosList = refetched as Protocol[]
+          }
         }
       }
 
@@ -215,14 +219,6 @@ export default function ProtocolPage() {
         held: !!r.held,
         log_date: r.log_date,
       })))
-      const { data: expRows } = await supabase
-        .from('experiments')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false })
-        .limit(1)
-      setExperiment(((expRows as Experiment[] | null) ?? [])[0] ?? null)
       const firstDate = (firstRow?.[0]?.log_date as string | undefined) ?? todayISO()
       const countMap: Record<string, CountState> = {}
       ;(protosList).forEach((p) => {
@@ -411,9 +407,9 @@ export default function ProtocolPage() {
   }
 
   const smallBtn = (active: boolean): React.CSSProperties => ({
-    background: active ? '#3a2a2e' : 'rgba(255,255,255,0.05)',
-    color: active ? '#f0a0b0' : '#c9ccd4',
-    border: `1px solid ${active ? '#e0607e' : 'rgba(255,255,255,0.1)'}`,
+    background: active ? '#ffe4e6' : '#f1f5f9',
+    color: active ? '#be123c' : '#334155',
+    border: `1px solid ${active ? '#e0607e' : '#e2e8f0'}`,
   })
 
   const renderSmallActions = (card: Card) => {
@@ -435,12 +431,12 @@ export default function ProtocolPage() {
           </button>
         </div>
         {focused && until && (
-          <p className="text-xs mt-2" style={{ color: '#9aa0ae' }}>
+          <p className="text-xs mt-2" style={{ color: '#64748b' }}>
             Needs focus until {fmtShort(until)}: it stays in the daily 3 for this pillar.
           </p>
         )}
         {paused && !retired && (
-          <p className="text-xs mt-2" style={{ color: '#9aa0ae' }}>
+          <p className="text-xs mt-2" style={{ color: '#64748b' }}>
             Paused today only. It is back in the draw tomorrow.
           </p>
         )}
@@ -476,20 +472,25 @@ export default function ProtocolPage() {
           <span className="font-bold">
             {card.title}
             {experimental && (
-              <span className="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style={{ background: '#2a2d36', color: '#9aa0ae' }}>
+              <span className="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style={{ background: '#e2e8f0', color: '#64748b' }}>
                 Experimental
               </span>
             )}
+            {card.title === FIXED_FIRST_MIND_LABEL && (
+              <span className="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style={{ background: '#ffe4e6', color: '#be123c' }}>
+                Fixed first
+              </span>
+            )}
             {isFocused(card) && (
-              <span className="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style={{ background: '#3a2a2e', color: '#f0a0b0' }}>
+              <span className="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style={{ background: '#ffe4e6', color: '#be123c' }}>
                 Needs focus
               </span>
             )}
           </span>
-          <span style={{ color: '#9aa0ae' }}>{expanded[card.key] ? '▾' : '▸'}</span>
+          <span style={{ color: '#64748b' }}>{expanded[card.key] ? '▾' : '▸'}</span>
         </button>
         {expanded[card.key] && (
-          <p className="text-sm mt-1" style={{ color: '#9aa0ae' }}>{card.detail}</p>
+          <p className="text-sm mt-1" style={{ color: '#64748b' }}>{card.detail}</p>
         )}
         {split ? (
           <div className="grid grid-cols-4 gap-2 mt-3">
@@ -565,11 +566,11 @@ export default function ProtocolPage() {
         )}
         {renderSmallActions(card)}
         {isWeekly ? (
-          <p className="text-xs tabular-nums mt-2 font-medium" style={{ color: '#c9ccd4' }}>
+          <p className="text-xs tabular-nums mt-2 font-medium" style={{ color: '#334155' }}>
             {weeklySessions} of {WEEKLY_TARGET} sessions this week (Mon-Sun)
           </p>
         ) : split ? (
-          <p className="text-xs tabular-nums mt-2" style={{ color: '#9aa0ae' }}>
+          <p className="text-xs tabular-nums mt-2" style={{ color: '#64748b' }}>
             {rows.map((r) => {
               const c = counts[r.id]
               return `${shortHalfName(r.label)} held ${c ? `${c.held}/${c.days}` : '–'}`
@@ -586,7 +587,7 @@ export default function ProtocolPage() {
           (() => {
             const c = counts[rows[0].id]
             return c ? (
-              <p className="text-xs tabular-nums mt-2" style={{ color: '#9aa0ae' }}>
+              <p className="text-xs tabular-nums mt-2" style={{ color: '#64748b' }}>
                 Held {c.held}/{c.days} days · Committed {c.committed}/{c.days} mornings{c.isNew ? ` · s. ${fmtShort(c.start)}` : ''}
               </p>
             ) : null
@@ -604,17 +605,17 @@ export default function ProtocolPage() {
         <p className="font-bold">
           {card.title}
           {focused && (
-            <span className="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style={{ background: '#3a2a2e', color: '#f0a0b0' }}>
+            <span className="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style={{ background: '#ffe4e6', color: '#be123c' }}>
               Needs focus
             </span>
           )}
           {retired && (
-            <span className="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style={{ background: '#2a2d36', color: '#9aa0ae' }}>
+            <span className="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style={{ background: '#e2e8f0', color: '#64748b' }}>
               Retired
             </span>
           )}
         </p>
-        {card.detail && <p className="text-sm mt-1" style={{ color: '#9aa0ae' }}>{card.detail}</p>}
+        {card.detail && <p className="text-sm mt-1" style={{ color: '#64748b' }}>{card.detail}</p>}
         {retired ? (
           <button type="button" onClick={() => onRestore(card)} className="text-xs px-2 py-2 rounded-xl mt-3" style={smallBtn(false)}>
             Restore to the pool
@@ -635,12 +636,17 @@ export default function ProtocolPage() {
     const allCards = toCards(protocols.filter((p) => p.pillar === pillar && p.cadence === 'daily'))
     const pool = allCards.filter((c) => !isRetired(c))
     const eligible = allCards.filter((c) => !isRetired(c) && !isPausedToday(c))
-    const focused = eligible.filter((c) => isFocused(c)).sort((a, b) => a.rows[0].position - b.rows[0].position)
+    // Fixed first Mind card: always first in Mind, if eligible, and it
+    // counts toward Mind's draw count. Pausing or retiring it frees
+    // the slot like any other card.
+    const fixed = pillar === 'mind' ? eligible.filter((c) => c.title === FIXED_FIRST_MIND_LABEL) : []
+    const nonFixed = eligible.filter((c) => c.title !== FIXED_FIRST_MIND_LABEL)
+    const focused = nonFixed.filter((c) => isFocused(c)).sort((a, b) => a.rows[0].position - b.rows[0].position)
     const rest = seededShuffle(
-      eligible.filter((c) => !isFocused(c)),
+      nonFixed.filter((c) => !isFocused(c)),
       hashString(`${today}:${pillar}`)
     )
-    const drawn = [...focused, ...rest].slice(0, draw)
+    const drawn = [...fixed, ...focused, ...rest].slice(0, draw)
     return { cards: drawn, pool }
   }
 
@@ -649,7 +655,7 @@ export default function ProtocolPage() {
   return (
     <main className="max-w-md mx-auto px-4 py-6 space-y-4">
       <h1 className="text-xl font-bold">Today&apos;s habits · {dateLabel}</h1>
-      <p className="text-sm" style={{ color: '#9aa0ae' }}>
+      <p className="text-sm" style={{ color: '#64748b' }}>
         Daily draw, 13 cards in total: Mind 3, Nutrition 3, Family 2, and 1
         each for Training, Cardiovascular, Sleep, Preventive, and
         Accountability. Supplements live in the weekly and monthly review.
@@ -659,31 +665,16 @@ export default function ProtocolPage() {
       </p>
       <Link href="/app/review" className="card block" style={{ textDecoration: 'none' }}>
         <p className="text-sm font-bold">Weekly and monthly review</p>
-        <p className="text-xs mt-1" style={{ color: '#9aa0ae' }}>Sunday weekly review, last-day monthly review, supplements, and preventive items. A separate module.</p>
+        <p className="text-xs mt-1" style={{ color: '#64748b' }}>Sunday weekly review, last-day monthly review, supplements, and preventive items. A separate module.</p>
       </Link>
 
-      {loading && <p className="text-sm" style={{ color: '#9aa0ae' }}>Loading...</p>}
+      {loading && <p className="text-sm" style={{ color: '#64748b' }}>Loading...</p>}
 
       {actionError && (
         <div className="card" style={{ borderColor: '#e0607e' }}>
           <p className="text-sm font-bold" style={{ color: '#e0607e' }}>That did not save</p>
-          <p className="text-sm mt-1" style={{ color: '#9aa0ae' }}>{actionError}</p>
+          <p className="text-sm mt-1" style={{ color: '#64748b' }}>{actionError}</p>
         </div>
-      )}
-
-      {!loading && experiment && (
-        <Link href="/app/experiment" className="card block" style={{ textDecoration: 'none', borderColor: '#e0607e' }}>
-          <p className="text-xs font-semibold tracking-wider" style={{ color: '#e0607e' }}>SELF-EXPERIMENT · DAY {Math.min(Math.max(Math.round((new Date(todayISO() + 'T12:00:00').getTime() - new Date(experiment.start_date + 'T12:00:00').getTime()) / 86400000) + 1, 1), experiment.duration_days)} OF {experiment.duration_days}</p>
-          <p className="text-sm font-bold mt-1">{experiment.title}</p>
-          <p className="text-xs mt-1" style={{ color: '#9aa0ae' }}>Tap to view weight vs adherence →</p>
-        </Link>
-      )}
-
-      {!loading && !experiment && (
-        <Link href="/app/experiment/new" className="card block" style={{ textDecoration: 'none' }}>
-          <p className="text-sm font-bold">Run a self-experiment</p>
-          <p className="text-xs mt-1" style={{ color: '#9aa0ae' }}>Pre-register one change for a week and track it against your baseline.</p>
-        </Link>
       )}
 
       <button
@@ -701,25 +692,25 @@ export default function ProtocolPage() {
             <h2 className="text-base font-bold">
               {label}
               {fundamental && (
-                <span className="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style={{ background: '#3a2a2e', color: '#f0a0b0' }}>
+                <span className="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style={{ background: '#ffe4e6', color: '#be123c' }}>
                   Fundamental
                 </span>
               )}
             </h2>
             {fundamental && (
-              <p className="text-xs" style={{ color: '#9aa0ae' }}>Mind comes first. It holds the plan, the commitment, and the lapse re-entry rule.</p>
+              <p className="text-xs" style={{ color: '#64748b' }}>Mind comes first. It holds the plan, the commitment, and the lapse re-entry rule.</p>
             )}
             {draw === 0 && (
-              <p className="text-sm" style={{ color: '#9aa0ae' }}>No daily draw here. Supplements are checked in the weekly and monthly review.</p>
+              <p className="text-sm" style={{ color: '#64748b' }}>No daily draw here. Supplements are checked in the weekly and monthly review.</p>
             )}
             {draw > 0 && pool.length === 0 && (
-              <p className="text-sm" style={{ color: '#9aa0ae' }}>No habits yet in this pillar.</p>
+              <p className="text-sm" style={{ color: '#64748b' }}>No habits yet in this pillar.</p>
             )}
             {draw > 0 && pool.length > 0 && cards.length === 0 && (
-              <p className="text-sm" style={{ color: '#9aa0ae' }}>All habits in this pillar are paused or retired today.</p>
+              <p className="text-sm" style={{ color: '#64748b' }}>All habits in this pillar are paused or retired today.</p>
             )}
             {draw > 0 && pool.length > 0 && (
-              <p className="text-xs" style={{ color: '#9aa0ae' }}>{cards.length} of {pool.length} drawn today</p>
+              <p className="text-xs" style={{ color: '#64748b' }}>{cards.length} of {pool.length} drawn today</p>
             )}
             {cards.map(renderCard)}
           </section>
@@ -736,19 +727,19 @@ export default function ProtocolPage() {
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
               placeholder="Habit, e.g. Call a friend"
-              className="w-full rounded-xl px-3 py-2 bg-white/5 border border-white/10"
+              className="w-full rounded-xl px-3 py-2 bg-slate-100 border border-slate-200"
             />
             <input
               type="text"
               value={newDetail}
               onChange={(e) => setNewDetail(e.target.value)}
               placeholder="Detail (optional)"
-              className="w-full rounded-xl px-3 py-2 bg-white/5 border border-white/10"
+              className="w-full rounded-xl px-3 py-2 bg-slate-100 border border-slate-200"
             />
             <select
               value={newPillar}
               onChange={(e) => setNewPillar(e.target.value as Protocol['pillar'])}
-              className="w-full rounded-xl px-3 py-2 bg-white/5 border border-white/10"
+              className="w-full rounded-xl px-3 py-2 bg-slate-100 border border-slate-200"
             >
               {PILLARS.map((p) => (
                 <option key={p.key} value={p.key}>{p.label}</option>
@@ -757,7 +748,7 @@ export default function ProtocolPage() {
             <button type="button" onClick={() => void onAddHabit()} className="btn-primary w-full" disabled={!newLabel.trim() || adding}>
               {adding ? 'Adding...' : 'Add to the pool'}
             </button>
-            <p className="text-xs" style={{ color: '#9aa0ae' }}>A new habit joins tomorrow&apos;s draw, unless you mark it Needs focus.</p>
+            <p className="text-xs" style={{ color: '#64748b' }}>A new habit joins tomorrow&apos;s draw, unless you mark it Needs focus.</p>
           </div>
 
           {PILLARS.map(({ key, label }) => {
@@ -774,7 +765,7 @@ export default function ProtocolPage() {
           {retiredCards.length > 0 && (
             <section className="space-y-3">
               <h3 className="text-base font-bold">Retired</h3>
-              <p className="text-sm" style={{ color: '#9aa0ae' }}>Retired habits stay here. Restore one any time to put it back in the pool.</p>
+              <p className="text-sm" style={{ color: '#64748b' }}>Retired habits stay here. Restore one any time to put it back in the pool.</p>
               {retiredCards.map(renderLibraryCard)}
             </section>
           )}
@@ -789,7 +780,7 @@ export default function ProtocolPage() {
         >
           <div className="card max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
             <p className="font-bold">Are you sure?</p>
-            <p className="text-sm mt-2" style={{ color: '#9aa0ae' }}>
+            <p className="text-sm mt-2" style={{ color: '#64748b' }}>
               Meal end 3 hours before bed is really important for how you will feel tomorrow morning.
             </p>
             <div className="grid grid-cols-2 gap-2 mt-4">

@@ -26,29 +26,29 @@ function MoreBody() {
                 </span>
                 <div>
                   <h2 className="font-semibold">{m.title}</h2>
-                  <p className="text-[#9aa0ae] text-sm mt-1">{m.bodyState}</p>
+                  <p className="text-[#64748b] text-sm mt-1">{m.bodyState}</p>
                 </div>
               </div>
             )
           }
           return (
             <div key={m.id} className="card opacity-60">
-              <p className="text-[#9aa0ae] text-sm">
+              <p className="text-[#64748b] text-sm">
                 Milestone {m.id} &middot; in about {m.hours}h from start
               </p>
-              <h2 className="font-semibold text-[#9aa0ae] mt-1">{m.title}</h2>
+              <h2 className="font-semibold text-[#64748b] mt-1">{m.title}</h2>
             </div>
           )
         })}
       </div>
-      <p className="text-[#9aa0ae] text-xs text-center">
+      <p className="text-[#64748b] text-xs text-center">
         Milestones 2-12 are proposed timings. The journey is the point.
       </p>
 
       {records.length > 0 && (
         <section className="mt-8">
           <h2 className="text-xl font-bold mb-1">Routine records</h2>
-          <p className="text-sm mb-4" style={{ color: '#9aa0ae' }}>
+          <p className="text-sm mb-4" style={{ color: '#64748b' }}>
             Hold counts no slip can take away.
           </p>
           <div className="space-y-3">
@@ -58,7 +58,7 @@ function MoreBody() {
                 <div key={r.id} className="card">
                   <div className="flex items-baseline justify-between gap-2">
                     <p className="font-semibold">{r.label}</p>
-                    <p className="text-sm tabular-nums whitespace-nowrap" style={{ color: '#9aa0ae' }}>
+                    <p className="text-sm tabular-nums whitespace-nowrap" style={{ color: '#64748b' }}>
                       {r.holds} {r.holds === 1 ? 'hold' : 'holds'}
                     </p>
                   </div>
@@ -69,7 +69,7 @@ function MoreBody() {
                         className={`px-2 py-1 rounded-full border ${
                           r.holds >= m
                             ? 'text-accent border-accent/40'
-                            : 'text-muted border-white/10'
+                            : 'text-muted border-slate-200'
                         }`}
                       >
                         {r.holds >= m ? `✓ ${m}` : `${m}`}
@@ -77,7 +77,7 @@ function MoreBody() {
                     ))}
                   </div>
                   {next && (
-                    <p className="text-xs mt-2" style={{ color: '#9aa0ae' }}>
+                    <p className="text-xs mt-2" style={{ color: '#64748b' }}>
                       Next record at {next} holds.
                     </p>
                   )}

@@ -39,7 +39,7 @@ export function EvidenceTag({ tier }: { tier: EvidenceTier }) {
         >
           <div
             className="w-full max-w-md rounded-t-2xl p-6 pb-10"
-            style={{ background: '#20242e' }}
+            style={{ background: '#f1f5f9' }}
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-xs text-muted uppercase tracking-widest">Evidence: {tier}</p>
@@ -94,7 +94,7 @@ export function AllMetrics({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="w-full flex items-center justify-between mt-4 pt-4 border-t border-white/10"
+        className="w-full flex items-center justify-between mt-4 pt-4 border-t border-slate-200"
       >
         <span className="font-semibold" style={{ color: '#f0506e' }}>
           All metrics ({totalCount})
@@ -105,7 +105,7 @@ export function AllMetrics({
   }
 
   return (
-    <div className="mt-4 pt-4 border-t border-white/10">
+    <div className="mt-4 pt-4 border-t border-slate-200">
       <p className="text-sm text-muted">
         Change vs your usual. Exploratory: only {METRIC_DRAWER_LABELS[primaryKey]?.toLowerCase() ?? 'the primary metric'} decides the verdict.
       </p>
@@ -163,7 +163,7 @@ export function AllMetrics({
                           className="text-xs font-bold rounded-full px-3 py-1.5 border"
                           style={{
                             borderColor: '#4a5160',
-                            color: pinned.length >= 3 ? '#4a5160' : '#9aa0ae',
+                            color: pinned.length >= 3 ? '#4a5160' : '#64748b',
                           }}
                         >
                           Pin

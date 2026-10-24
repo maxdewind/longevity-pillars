@@ -159,7 +159,7 @@ export default function StartLookbackPage() {
             type="button"
             onClick={() => changeLookback(lb)}
             className={`flex-1 rounded-xl border px-2 py-2.5 text-sm font-semibold ${
-              lookback === lb ? 'bg-white text-black border-white' : 'border-white/15 text-white'
+              lookback === lb ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-300 text-slate-700'
             }`}
           >
             {lb} days

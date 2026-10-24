@@ -25,13 +25,13 @@ export function fmtPub(iso: string) {
 export function DemoGate({ children }: { children: ReactNode }) {
   const { snap, loaded } = useDemo()
   if (!loaded) {
-    return <p className="text-sm" style={{ color: '#9aa0ae' }}>Loading the demo…</p>
+    return <p className="text-sm" style={{ color: '#64748b' }}>Loading the demo…</p>
   }
   if (!snap) {
     return (
       <div className="card text-center">
         <p className="font-semibold">The live demo hasn&apos;t been published yet.</p>
-        <p className="text-sm mt-2" style={{ color: '#9aa0ae' }}>
+        <p className="text-sm mt-2" style={{ color: '#64748b' }}>
           Check back soon, or start your own day 1 now.
         </p>
         <Link href="/signup" className="btn-primary w-full block text-center mt-4">

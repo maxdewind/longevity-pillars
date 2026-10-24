@@ -75,7 +75,7 @@ export default function ResolutionCard() {
         </>
       ) : (
         <>
-          <p className="text-sm mb-3" style={{ color: '#9aa0ae' }}>
+          <p className="text-sm mb-3" style={{ color: '#64748b' }}>
             Why are you climbing? Write it in one or two sentences. This is
             your Rung 0 to Rung 1 decision, and it will be here waiting every
             time you restart.

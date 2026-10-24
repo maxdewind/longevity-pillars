@@ -159,7 +159,7 @@ export default function SmallerRulePage({ params }: { params: { id: string } }) 
                   : { borderColor: '#4a5160', minHeight: 96 + i * 12 }}
               >
                 <p className="font-bold text-lg" style={{ color: i === 0 ? '#fff' : '#f0506e' }}>{s.label}</p>
-                <p className="text-sm" style={{ color: i === 0 ? 'rgba(255,255,255,0.85)' : '#9aa0ae' }}>
+                <p className="text-sm" style={{ color: i === 0 ? 'rgba(255,255,255,0.85)' : '#64748b' }}>
                   Week {i + 1}
                 </p>
               </div>

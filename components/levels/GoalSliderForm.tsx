@@ -257,7 +257,7 @@ export default function GoalSliderForm({ nextHref, nextLabel, onSaved }: Props) 
                       value={height}
                       onChange={(e) => setHeight(e.target.value)}
                       placeholder={'183 or 5\'10"'}
-                      className="mt-1 w-full bg-ink border border-white/10 rounded-lg px-3 py-2 text-white"
+                      className="mt-1 w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
                       aria-label="Height"
                     />
                     {height.trim() !== '' && heightCm == null && (

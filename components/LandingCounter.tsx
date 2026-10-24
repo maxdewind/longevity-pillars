@@ -21,9 +21,9 @@ export default function LandingCounter() {
   return (
     <div className="card text-center">
       <p className="text-6xl font-bold tabular-nums">{days}</p>
-      <p className="text-[#9aa0ae] text-sm mt-1">clean days</p>
+      <p className="text-[#64748b] text-sm mt-1">clean days</p>
       <p className="text-2xl font-semibold tabular-nums mt-3">{formatHMS(elapsedMs)}</p>
-      <p className="text-[#9aa0ae] text-xs mt-2">
+      <p className="text-[#64748b] text-xs mt-2">
         Live demo. It started counting when you opened this page.
       </p>
     </div>

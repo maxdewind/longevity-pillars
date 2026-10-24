@@ -44,7 +44,7 @@ function RecordBody() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Track record</h1>
-      <p className="text-sm" style={{ color: '#9aa0ae' }}>
+      <p className="text-sm" style={{ color: '#64748b' }}>
         His body of evidence, as published{publishedAt ? ` ${fmtPub(publishedAt)}` : ''}. Streaks reset to zero. This doesn&apos;t.
       </p>
 
@@ -53,18 +53,18 @@ function RecordBody() {
         {snap.resolution ? (
           <p className="text-sm italic">&ldquo;{snap.resolution}&rdquo;</p>
         ) : (
-          <p className="text-sm" style={{ color: '#9aa0ae' }}>No resolution written yet.</p>
+          <p className="text-sm" style={{ color: '#64748b' }}>No resolution written yet.</p>
         )}
       </section>
 
       <section className="grid grid-cols-2 gap-3">
         <div className="card">
           <p className="text-2xl font-bold tabular-nums">{rec.total_committed}</p>
-          <p className="text-xs mt-1" style={{ color: '#9aa0ae' }}>mornings committed</p>
+          <p className="text-xs mt-1" style={{ color: '#64748b' }}>mornings committed</p>
         </div>
         <div className="card">
           <p className="text-2xl font-bold tabular-nums">{rec.total_held}</p>
-          <p className="text-xs mt-1" style={{ color: '#9aa0ae' }}>evenings held</p>
+          <p className="text-xs mt-1" style={{ color: '#64748b' }}>evenings held</p>
         </div>
       </section>
 
@@ -84,10 +84,10 @@ function RecordBody() {
           )}
         </div>
         <div className="flex items-center justify-between mt-3">
-          <p className="text-xs" style={{ color: '#9aa0ae' }}>
+          <p className="text-xs" style={{ color: '#64748b' }}>
             Last {WEEKS} weeks. Darker = more routines held that day.
           </p>
-          <div className="flex items-center gap-1 text-xs" style={{ color: '#9aa0ae' }}>
+          <div className="flex items-center gap-1 text-xs" style={{ color: '#64748b' }}>
             <span>Less</span>
             <span className="w-3 h-3 rounded-[3px] bg-white/[0.04]" />
             <span className="w-3 h-3 rounded-[3px] bg-accent/25" />
@@ -105,11 +105,11 @@ function RecordBody() {
             <div key={s.id}>
               <div className="flex items-baseline justify-between gap-2">
                 <p className="text-sm font-medium">{s.label}</p>
-                <p className="text-xs tabular-nums whitespace-nowrap" style={{ color: '#9aa0ae' }}>
+                <p className="text-xs tabular-nums whitespace-nowrap" style={{ color: '#64748b' }}>
                   {s.rate}% held
                 </p>
               </div>
-              <p className="text-xs tabular-nums" style={{ color: '#9aa0ae' }}>
+              <p className="text-xs tabular-nums" style={{ color: '#64748b' }}>
                 {s.held} evenings held · {s.committed} mornings committed
                 {s.days > 0 ? ` · ${s.days} days tracked` : ''}
               </p>

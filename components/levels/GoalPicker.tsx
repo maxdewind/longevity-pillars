@@ -91,7 +91,7 @@ export default function GoalPicker({ nextHref, nextLabel, onSaved }: Props) {
                         return next
                       })
                     }
-                    className={`rounded-lg border px-3 py-2 text-left ${active ? 'border-accent bg-accent/10' : 'border-white/10'}`}
+                    className={`rounded-lg border px-3 py-2 text-left ${active ? 'border-accent bg-accent/10' : 'border-slate-200'}`}
                   >
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted">
                       {b === 'population' ? 'Population' : 'Aspirational'}

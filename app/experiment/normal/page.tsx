@@ -82,7 +82,7 @@ function InfoButton({ open, onClick }: { open: boolean; onClick: () => void }) {
 
 function InfoBox({ text }: { text: string }) {
   return (
-    <p className="text-sm text-muted mt-3 card !bg-white/5">{text}</p>
+    <p className="text-sm text-muted mt-3 card !bg-slate-100">{text}</p>
   )
 }
 
@@ -500,7 +500,7 @@ export default function StartNormalPage() {
                 type="button"
                 onClick={() => pickCompare(m)}
                 className={`flex-1 rounded-xl border px-2 py-2.5 text-sm font-semibold ${
-                  compare === m ? 'bg-white text-black border-white' : 'border-white/15 text-white'
+                  compare === m ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-300 text-slate-700'
                 }`}
               >
                 {m === 'off' ? 'Off' : m === 'healthy' ? 'Healthy range' : 'Top percentile'}

@@ -62,7 +62,7 @@ function WeightBody() {
             Save
           </button>
         </div>
-        <p className="text-xs" style={{ color: '#9aa0ae' }}>His latest weigh-in, read-only in the demo.</p>
+        <p className="text-xs" style={{ color: '#64748b' }}>His latest weigh-in, read-only in the demo.</p>
       </section>
 
       <section className="space-y-3">
@@ -80,13 +80,13 @@ function WeightBody() {
                 <circle key={i} cx={d.x} cy={d.y} r="3" fill="#f0506e" />
               ))}
             </svg>
-            <div className="flex justify-between text-xs" style={{ color: '#9aa0ae' }}>
+            <div className="flex justify-between text-xs" style={{ color: '#64748b' }}>
               <span>{formatDate(logs[0].log_date)}</span>
               <span>{formatDate(logs[logs.length - 1].log_date)}</span>
             </div>
           </div>
         ) : (
-          <p className="text-sm" style={{ color: '#9aa0ae' }}>Log a few days to see your trend.</p>
+          <p className="text-sm" style={{ color: '#64748b' }}>Log a few days to see your trend.</p>
         )}
       </section>
 
@@ -94,7 +94,7 @@ function WeightBody() {
         <h2 className="text-xl font-bold">Phase targets</h2>
         <div className="card">
           {start === null ? (
-            <p className="text-sm" style={{ color: '#9aa0ae' }}>
+            <p className="text-sm" style={{ color: '#64748b' }}>
               Log your weight to see phase targets.
             </p>
           ) : (
@@ -111,7 +111,7 @@ function WeightBody() {
                   )
                 })}
               </div>
-              <p className="text-xs mt-3" style={{ color: '#9aa0ae' }}>
+              <p className="text-xs mt-3" style={{ color: '#64748b' }}>
                 Editable estimates, not promises. Based on a steady 0.5–1% per week pace.
               </p>
             </>
@@ -120,7 +120,7 @@ function WeightBody() {
       </section>
 
       <section className="card text-center space-y-3">
-        <p className="text-[#9aa0ae] text-sm">
+        <p className="text-[#64748b] text-sm">
           Your trend starts with a single weigh-in.
         </p>
         <Link href="/signup" className="btn-primary w-full block text-center">

@@ -22,7 +22,7 @@ function DemoShell({ children }: { children: React.ReactNode }) {
         <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <p className="text-sm">
             <span className="font-semibold">Demo mode.</span>{' '}
-            <span className="text-[#9aa0ae]">
+            <span className="text-[#64748b]">
               Max&apos;s real protocol{publishedAt ? `, published ${fmtPub(publishedAt)}` : ''}. Nothing here is saved.
             </span>
           </p>
@@ -34,7 +34,7 @@ function DemoShell({ children }: { children: React.ReactNode }) {
 
       <main className="max-w-md mx-auto px-4 pt-4 pb-28">{children}</main>
 
-      <nav className="fixed bottom-0 inset-x-0 z-40 border-t border-white/5 bg-ink/95 backdrop-blur">
+      <nav className="fixed bottom-0 inset-x-0 z-40 border-t border-slate-200 bg-ink/95 backdrop-blur">
         <div className="max-w-md mx-auto grid grid-cols-6">
           {NAV.map((item) => {
             const active =

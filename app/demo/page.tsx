@@ -75,15 +75,15 @@ function ProgressBody() {
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-[#9aa0ae] text-center">
+      <p className="text-xs text-[#64748b] text-center">
         A frozen copy of the builder&apos;s own account. He publishes it himself, when he feels like it.
       </p>
 
       <section className="card text-center">
         <p className="text-6xl font-bold tabular-nums">{fullDays}</p>
-        <p className="text-[#9aa0ae] text-sm mt-1">clean days</p>
+        <p className="text-[#64748b] text-sm mt-1">clean days</p>
         <p className="text-2xl font-semibold tabular-nums mt-3">{formatHMS(elapsedMs)}</p>
-        <p className="text-[#9aa0ae] text-xs mt-1">since his day 1 · live</p>
+        <p className="text-[#64748b] text-xs mt-1">since his day 1 · live</p>
       </section>
 
       <section className="card">
@@ -92,16 +92,16 @@ function ProgressBody() {
         ) : (
           <>
             <div className="flex items-baseline justify-between gap-2">
-              <p className="text-xs uppercase tracking-wide text-[#9aa0ae]">
+              <p className="text-xs uppercase tracking-wide text-[#64748b]">
                 Upcoming &middot; Milestone {upcoming.id} of 12
               </p>
-              <p className="text-sm text-[#9aa0ae] tabular-nums whitespace-nowrap">
+              <p className="text-sm text-[#64748b] tabular-nums whitespace-nowrap">
                 {formatRemaining(journey.msRemaining)}
               </p>
             </div>
             <h2 className="text-lg font-semibold mt-1">{upcoming.title}</h2>
-            <p className="text-[#9aa0ae] text-sm mt-1">{upcoming.bodyState}</p>
-            <div className="h-2 rounded-full bg-[#14161d] mt-3 overflow-hidden">
+            <p className="text-[#64748b] text-sm mt-1">{upcoming.bodyState}</p>
+            <div className="h-2 rounded-full bg-slate-200 mt-3 overflow-hidden">
               <div
                 className="h-full rounded-full bg-[#f0506e]"
                 style={{ width: `${Math.min(100, Math.max(0, journey.progressPct))}%` }}
@@ -116,40 +116,40 @@ function ProgressBody() {
         <h2 className="font-semibold">Weight</h2>
         {currentWeight !== null && startWeight !== null ? (
           <>
-            <p className="text-[#9aa0ae] text-sm mt-1">
+            <p className="text-[#64748b] text-sm mt-1">
               Starting weight {startWeight} lb
             </p>
             <p className="text-2xl font-semibold tabular-nums mt-1">
-              {currentWeight} <span className="text-sm font-normal text-[#9aa0ae]">lb</span>
+              {currentWeight} <span className="text-sm font-normal text-[#64748b]">lb</span>
             </p>
             <Link href="/demo/weight" className="inline-block mt-3 text-[#f0506e] text-sm font-medium">
               Weight plan &rarr;
             </Link>
           </>
         ) : (
-          <p className="text-[#9aa0ae] text-sm mt-1">No weigh-ins in this snapshot.</p>
+          <p className="text-[#64748b] text-sm mt-1">No weigh-ins in this snapshot.</p>
         )}
       </section>
 
       <section className="grid grid-cols-3 gap-3">
         <div className="card">
           <p className="text-lg font-semibold tabular-nums">{formatMoney(saved)}</p>
-          <p className="text-[#9aa0ae] text-xs mt-1">on pace to save · live</p>
+          <p className="text-[#64748b] text-xs mt-1">on pace to save · live</p>
         </div>
         <div className="card">
           <p className="text-lg font-semibold tabular-nums">{fullDays}</p>
-          <p className="text-[#9aa0ae] text-xs mt-1">total clean days</p>
+          <p className="text-[#64748b] text-xs mt-1">total clean days</p>
         </div>
         <div className="card">
           <p className="text-lg font-semibold tabular-nums">{wavesRidden}</p>
-          <p className="text-[#9aa0ae] text-xs mt-1">craving waves ridden</p>
+          <p className="text-[#64748b] text-xs mt-1">craving waves ridden</p>
         </div>
       </section>
 
       <section className="card text-center">
         {!waveRunning && !waveDoneMsg && (
           <>
-            <p className="text-[#9aa0ae] text-sm">A craving is a wave. It peaks, then it passes.</p>
+            <p className="text-[#64748b] text-sm">A craving is a wave. It peaks, then it passes.</p>
             <button type="button" className="btn-primary mt-3 w-full" onClick={startWave}>
               Ride out a wave
             </button>
@@ -217,13 +217,13 @@ function ProgressBody() {
             )}
           </>
         )}
-        <p className="text-[#9aa0ae] text-xs mt-3 text-center">
+        <p className="text-[#64748b] text-xs mt-3 text-center">
           A slip restarts the counter, never the story.
         </p>
       </section>
 
       <section className="card text-center space-y-3">
-        <p className="text-[#9aa0ae] text-sm">
+        <p className="text-[#64748b] text-sm">
           This is the real thing, running on a real person&apos;s real days. Your day 1 starts the moment you sign up.
         </p>
         <Link href="/signup" className="btn-primary w-full block text-center">

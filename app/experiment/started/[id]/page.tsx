@@ -188,7 +188,7 @@ export default function StartedPage({ params }: { params: { id: string } }) {
             className="py-3 font-semibold text-sm"
             style={compare === m
               ? { background: '#f0506e', color: '#fff' }
-              : { background: 'transparent', color: '#9aa0ae' }}
+              : { background: 'transparent', color: '#64748b' }}
           >
             {m === 'off' ? 'Off' : m === 'healthy' ? 'Healthy range' : 'Top percentile'}
           </button>

@@ -90,7 +90,7 @@ export default function ProgressPage() {
     return (
       <main className="max-w-md mx-auto px-4 py-8">
         <div className="card">
-          <p className="text-[#9aa0ae]">Loading my progress...</p>
+          <p className="text-[#64748b]">Loading my progress...</p>
         </div>
       </main>
     )
@@ -205,9 +205,9 @@ export default function ProgressPage() {
       {/* Counter card */}
       <section className="card text-center">
         <p className="text-6xl font-bold tabular-nums">{fullDays}</p>
-        <p className="text-[#9aa0ae] text-sm mt-1">clean days</p>
+        <p className="text-[#64748b] text-sm mt-1">clean days</p>
         <p className="text-2xl font-semibold tabular-nums mt-3">{formatHMS(elapsedMs)}</p>
-        <p className="text-[#9aa0ae] text-xs mt-1">since {startedCaption}</p>
+        <p className="text-[#64748b] text-xs mt-1">since {startedCaption}</p>
       </section>
 
       {/* Milestone card, directly under the counter */}
@@ -217,16 +217,16 @@ export default function ProgressPage() {
         ) : (
           <>
             <div className="flex items-baseline justify-between gap-2">
-              <p className="text-xs uppercase tracking-wide text-[#9aa0ae]">
+              <p className="text-xs uppercase tracking-wide text-[#64748b]">
                 Upcoming &middot; Milestone {upcoming.id} of 12
               </p>
-              <p className="text-sm text-[#9aa0ae] tabular-nums whitespace-nowrap">
+              <p className="text-sm text-[#64748b] tabular-nums whitespace-nowrap">
                 {formatRemaining(journey.msRemaining)}
               </p>
             </div>
             <h2 className="text-lg font-semibold mt-1">{upcoming.title}</h2>
-            <p className="text-[#9aa0ae] text-sm mt-1">{upcoming.bodyState}</p>
-            <div className="h-2 rounded-full bg-[#14161d] mt-3 overflow-hidden">
+            <p className="text-[#64748b] text-sm mt-1">{upcoming.bodyState}</p>
+            <div className="h-2 rounded-full bg-slate-200 mt-3 overflow-hidden">
               <div
                 className="h-full rounded-full bg-[#f0506e]"
                 style={{ width: `${Math.min(100, Math.max(0, journey.progressPct))}%` }}
@@ -241,7 +241,7 @@ export default function ProgressPage() {
         <h2 className="font-semibold">Weight</h2>
         {weights.length === 0 ? (
           <>
-            <p className="text-[#9aa0ae] text-sm mt-1">
+            <p className="text-[#64748b] text-sm mt-1">
               I log my starting weight today, then check in daily from tomorrow.
             </p>
             <label className="label" htmlFor="start-weight">Starting weight (lb)</label>
@@ -267,11 +267,11 @@ export default function ProgressPage() {
           </>
         ) : (
           <>
-            <p className="text-[#9aa0ae] text-sm mt-1">
+            <p className="text-[#64748b] text-sm mt-1">
               Starting weight {startWeight} lb
             </p>
             <p className="text-2xl font-semibold tabular-nums mt-1">
-              {currentWeight} <span className="text-sm font-normal text-[#9aa0ae]">lb today</span>
+              {currentWeight} <span className="text-sm font-normal text-[#64748b]">lb today</span>
             </p>
             <label className="label" htmlFor="daily-weight">Update my weight (lb)</label>
             <div className="flex gap-2 mt-1">
@@ -304,15 +304,15 @@ export default function ProgressPage() {
       <section className="grid grid-cols-3 gap-3">
         <div className="card">
           <p className="text-lg font-semibold tabular-nums">{formatMoney(saved)}</p>
-          <p className="text-[#9aa0ae] text-xs mt-1">on pace to save &middot; live</p>
+          <p className="text-[#64748b] text-xs mt-1">on pace to save &middot; live</p>
         </div>
         <div className="card">
           <p className="text-lg font-semibold tabular-nums">{fullDays}</p>
-          <p className="text-[#9aa0ae] text-xs mt-1">total clean days</p>
+          <p className="text-[#64748b] text-xs mt-1">total clean days</p>
         </div>
         <div className="card">
           <p className="text-lg font-semibold tabular-nums">{waveCount}</p>
-          <p className="text-[#9aa0ae] text-xs mt-1">craving waves ridden</p>
+          <p className="text-[#64748b] text-xs mt-1">craving waves ridden</p>
         </div>
       </section>
 
@@ -320,7 +320,7 @@ export default function ProgressPage() {
       <section className="card text-center">
         {!waveRunning && !waveDoneMsg && (
           <>
-            <p className="text-[#9aa0ae] text-sm">A craving is a wave. It peaks, then it passes.</p>
+            <p className="text-[#64748b] text-sm">A craving is a wave. It peaks, then it passes.</p>
             <button type="button" className="btn-primary mt-3 w-full" onClick={startWave}>
               Ride out a wave
             </button>
@@ -385,7 +385,7 @@ export default function ProgressPage() {
             </div>
           </>
         )}
-        <p className="text-[#9aa0ae] text-xs mt-3 text-center">
+        <p className="text-[#64748b] text-xs mt-3 text-center">
           A slip restarts the counter, never the story.
         </p>
       </section>

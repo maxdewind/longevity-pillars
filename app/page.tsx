@@ -37,7 +37,7 @@ export default function LandingPage() {
       {/* Top bar */}
       <header className="flex items-center justify-between py-5">
         <span className="font-semibold tracking-tight">Longevity Pillars</span>
-        <Link href="/login" className="text-sm text-[#9aa0ae] hover:text-slate-200">
+        <Link href="/login" className="text-sm text-[#64748b] hover:text-slate-700">
           Sign in
         </Link>
       </header>
@@ -45,18 +45,18 @@ export default function LandingPage() {
       {/* Hero */}
       <section className="pt-6 space-y-5">
         <h1 className="text-4xl font-bold tracking-tight">Longevity Pillars</h1>
-        <p className="text-lg text-[#c3c8d4] leading-relaxed">
+        <p className="text-lg text-[#475569] leading-relaxed">
           I am building a quitter app for ultra-processed food. Craving support
           from day one, a 12-milestone journey, and restarts that cost you a day
           instead of your identity.
         </p>
-        <p className="text-sm text-[#9aa0ae] leading-relaxed">
+        <p className="text-sm text-[#64748b] leading-relaxed">
           Step one: quit ultra-processed food. This is{' '}
           <a
             href="https://x.com/HealthLadderX/status/2107293774506234247"
             target="_blank"
             rel="noopener noreferrer"
-            className="underline underline-offset-2 hover:text-slate-200"
+            className="underline underline-offset-2 hover:text-slate-700"
           >
             Rung 1 of the Health Ladder
           </a>
@@ -79,7 +79,7 @@ export default function LandingPage() {
         {HOW_IT_WORKS.map((item) => (
           <div key={item.title} className="card">
             <h3 className="font-semibold">{item.title}</h3>
-            <p className="text-sm text-[#9aa0ae] mt-1 leading-relaxed">{item.body}</p>
+            <p className="text-sm text-[#64748b] mt-1 leading-relaxed">{item.body}</p>
           </div>
         ))}
       </section>
@@ -95,7 +95,7 @@ export default function LandingPage() {
       {/* Why I am building this */}
       <section className="pt-12 space-y-4">
         <h2 className="text-xl font-bold">Why I am building this</h2>
-        <p className="text-[#c3c8d4] leading-relaxed">
+        <p className="text-[#475569] leading-relaxed">
           I have restarted on enough Mondays to know willpower is not the
           problem. Cravings show up on a schedule, so I built something that
           shows up on one too.
@@ -113,7 +113,7 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="pt-12 text-center text-xs text-[#9aa0ae]">
+      <footer className="pt-12 text-center text-xs text-[#64748b]">
         <p>Built in public by @HealthLadderX.</p>
         <p className="mt-1">Day 1 was October 4, 2026.</p>
       </footer>

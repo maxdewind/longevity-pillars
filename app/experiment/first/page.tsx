@@ -55,10 +55,10 @@ function EvidencePanel({ t }: { t: ExperimentTemplate }) {
   const word = evidenceWord(t.evidence_tier)
   const tiers: ('Strong' | 'Moderate' | 'Early')[] = ['Strong', 'Moderate', 'Early']
   return (
-    <div className="mt-4 pt-4 border-t border-white/10">
+    <div className="mt-4 pt-4 border-t border-slate-200">
       <div className="flex justify-between text-sm mb-3">
         {tiers.map((x) => (
-          <span key={x} className={x === word ? 'font-bold text-white' : 'text-muted'}>
+          <span key={x} className={x === word ? 'font-bold text-slate-900' : 'text-muted'}>
             {x}
           </span>
         ))}

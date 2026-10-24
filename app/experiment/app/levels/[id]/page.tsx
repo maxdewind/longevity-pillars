@@ -683,7 +683,7 @@ function VerdictView(args: {
                 className="rounded-full px-4 py-2 text-sm font-semibold border"
                 style={on
                   ? { background: '#f0506e', borderColor: '#f0506e', color: '#fff' }
-                  : { borderColor: '#4a5160', color: '#9aa0ae' }}
+                  : { borderColor: '#4a5160', color: '#64748b' }}
               >
                 {b}
               </button>
@@ -795,7 +795,7 @@ function VerdictView(args: {
             className="py-3 font-semibold"
             style={sustainability === k
               ? { background: '#f0506e', color: '#fff' }
-              : { background: 'transparent', color: '#9aa0ae' }}
+              : { background: 'transparent', color: '#64748b' }}
           >
             {SUSTAINABILITY_LABELS[k]}
           </button>

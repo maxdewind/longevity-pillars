@@ -37,17 +37,17 @@ function ProtocolBody() {
           <span className="font-bold">
             {card.title}
             {rows.some((r) => r.is_experimental) && (
-              <span className="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style={{ background: '#2a2d36', color: '#9aa0ae' }}>
+              <span className="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style={{ background: '#e2e8f0', color: '#64748b' }}>
                 Experimental
               </span>
             )}
           </span>
-          <span style={{ color: '#9aa0ae' }}>{expanded[card.key] ? '▾' : '▸'}</span>
+          <span style={{ color: '#64748b' }}>{expanded[card.key] ? '▾' : '▸'}</span>
         </button>
         {expanded[card.key] && (
-          <p className="text-sm mt-1" style={{ color: '#9aa0ae' }}>{card.detail}</p>
+          <p className="text-sm mt-1" style={{ color: '#64748b' }}>{card.detail}</p>
         )}
-        <p className="text-xs mt-2" style={{ color: '#9aa0ae' }}>
+        <p className="text-xs mt-2" style={{ color: '#64748b' }}>
           {mandatory ? 'Mandatory' : 'Not mandatory'}
         </p>
         <div className="flex gap-2 mt-3 flex-wrap">
@@ -58,21 +58,21 @@ function ProtocolBody() {
           })}
         </div>
         {isWeekly ? (
-          <p className="text-xs tabular-nums mt-2 font-medium" style={{ color: '#c9ccd4' }}>
+          <p className="text-xs tabular-nums mt-2 font-medium" style={{ color: '#334155' }}>
             {rows[0].weekly_sessions} of {WEEKLY_TARGET} sessions this week (Mon-Sun)
           </p>
         ) : split ? (
-          <p className="text-xs tabular-nums mt-2" style={{ color: '#9aa0ae' }}>
+          <p className="text-xs tabular-nums mt-2" style={{ color: '#64748b' }}>
             {rows.map((r) => `${shortHalfName(r.label)} held ${r.held14}/${r.days14}`).join(' · ')}
             {' · '}Committed {rows[0].committed14}/{rows[0].days14} mornings
           </p>
         ) : (
-          <p className="text-xs tabular-nums mt-2" style={{ color: '#9aa0ae' }}>
+          <p className="text-xs tabular-nums mt-2" style={{ color: '#64748b' }}>
             Held {rows[0].held14}/{rows[0].days14} days · Committed {rows[0].committed14}/{rows[0].days14} mornings
           </p>
         )}
         {missedYesterday && (
-          <p className="text-xs mt-2 font-medium" style={{ color: '#c9ccd4' }}>
+          <p className="text-xs mt-2 font-medium" style={{ color: '#334155' }}>
             It was one day only - get back to routine!
           </p>
         )}
@@ -85,7 +85,7 @@ function ProtocolBody() {
       <h1 className="text-xl font-bold">
         Today&apos;s protocol{publishedAt ? ` · ${fmtPub(publishedAt)}` : ''}
       </h1>
-      <p className="text-sm" style={{ color: '#9aa0ae' }}>
+      <p className="text-sm" style={{ color: '#64748b' }}>
         Committed is the promise you make each morning. Held is what you record
         each night. His actual check-ins, read-only.
       </p>
@@ -96,7 +96,7 @@ function ProtocolBody() {
             SELF-EXPERIMENT · DAY {exp.day_number} OF {exp.duration_days}
           </p>
           <p className="text-sm font-bold mt-1">{exp.title}</p>
-          <p className="text-xs mt-1" style={{ color: '#9aa0ae' }}>Tap to view weight vs adherence →</p>
+          <p className="text-xs mt-1" style={{ color: '#64748b' }}>Tap to view weight vs adherence →</p>
         </Link>
       )}
 
@@ -111,10 +111,10 @@ function ProtocolBody() {
                 style={{ background: 'none' }}
               >
                 <span className="text-sm font-bold">{b.title}</span>
-                <span style={{ color: '#9aa0ae' }}>{expanded[b.key] ? '▾' : '▸'}</span>
+                <span style={{ color: '#64748b' }}>{expanded[b.key] ? '▾' : '▸'}</span>
               </button>
               {expanded[b.key] && (
-                <p className="text-sm mt-1 italic" style={{ color: '#9aa0ae' }}>{b.body}</p>
+                <p className="text-sm mt-1 italic" style={{ color: '#64748b' }}>{b.body}</p>
               )}
             </div>
           ))}

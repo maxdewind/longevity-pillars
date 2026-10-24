@@ -24,7 +24,7 @@ export default function ReviewPage() {
   const labelFor = (key: string) => MASTER_PILLARS.find((p) => p.key === key)?.label ?? key
 
   const renderList = (items: typeof MASTER_REVIEW_ROUTINES) => {
-    if (items.length === 0) return <p className="text-sm" style={{ color: '#9aa0ae' }}>Nothing in this section yet.</p>
+    if (items.length === 0) return <p className="text-sm" style={{ color: '#64748b' }}>Nothing in this section yet.</p>
     return (
       <div className="space-y-3">
         {items.map((r) => (
@@ -40,8 +40,8 @@ export default function ReviewPage() {
               </span>
               <span>
                 <span className="font-bold block">{r.label}</span>
-                <span className="text-sm block mt-1" style={{ color: '#9aa0ae' }}>{r.detail}</span>
-                <span className="text-xs block mt-1" style={{ color: '#9aa0ae' }}>{labelFor(r.pillar)} · {r.timing}</span>
+                <span className="text-sm block mt-1" style={{ color: '#64748b' }}>{r.detail}</span>
+                <span className="text-xs block mt-1" style={{ color: '#64748b' }}>{labelFor(r.pillar)} · {r.timing}</span>
               </span>
             </button>
           </div>
@@ -59,7 +59,7 @@ export default function ReviewPage() {
   return (
     <main className="max-w-md mx-auto px-4 py-6 space-y-6">
       <h1 className="text-xl font-bold">Weekly and monthly review</h1>
-      <p className="text-sm" style={{ color: '#9aa0ae' }}>
+      <p className="text-sm" style={{ color: '#64748b' }}>
         A separate module from the daily draw. Weekly review is on Sunday.
         Monthly review is on the last day of the month. Supplements are
         checked here, not drawn daily. Ticks on this page are for this view
@@ -81,7 +81,7 @@ export default function ReviewPage() {
 
       <section className="space-y-3">
         <h2 className="text-base font-bold">Monthly review · last day of the month</h2>
-        <p className="text-sm" style={{ color: '#9aa0ae' }}>Monthly items below, plus quarterly items due that month.</p>
+        <p className="text-sm" style={{ color: '#64748b' }}>Monthly items below, plus quarterly items due that month.</p>
         {renderList(monthly)}
       </section>
 
@@ -92,7 +92,7 @@ export default function ReviewPage() {
 
       <section className="space-y-3">
         <h2 className="text-base font-bold">Queued and open items</h2>
-        <p className="text-sm" style={{ color: '#9aa0ae' }}>Queued items wait for their trigger, for example the heel clearing. Open items are gates and conversations, not daily habits.</p>
+        <p className="text-sm" style={{ color: '#64748b' }}>Queued items wait for their trigger, for example the heel clearing. Open items are gates and conversations, not daily habits.</p>
         {renderList(queued)}
       </section>
     </main>

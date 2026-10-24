@@ -134,14 +134,14 @@ export default function ExperimentPage() {
     window.location.href = '/app/protocol'
   }
 
-  if (!loaded) return <main className="p-6" style={{ color: '#9aa0ae' }}>Loading…</main>
+  if (!loaded) return <main className="p-6" style={{ color: '#64748b' }}>Loading…</main>
 
   if (!exp) {
     return (
       <main className="p-6 max-w-xl mx-auto">
         <h1 className="text-2xl font-bold">Self-Experiment</h1>
         <div className="card mt-6 p-5">
-          <p style={{ color: '#9aa0ae' }}>No active experiment. Pre-register one change and run it for a week against your baseline.</p>
+          <p style={{ color: '#64748b' }}>No active experiment. Pre-register one change and run it for a week against your baseline.</p>
           <Link href="/app/experiment/new" className="btn mt-4 inline-block" style={{ textDecoration: 'none' }}>
             Start a self-experiment
           </Link>
@@ -185,7 +185,7 @@ export default function ExperimentPage() {
       )}
 
       <div className="card mt-4 p-5">
-        <p className="text-xs" style={{ color: '#9aa0ae' }}>PRE-REGISTERED PROMISE</p>
+        <p className="text-xs" style={{ color: '#64748b' }}>PRE-REGISTERED PROMISE</p>
         <p className="text-xl font-bold mt-1">{exp.title}</p>
         {pillar && (
           <p className="mt-2">
@@ -194,7 +194,7 @@ export default function ExperimentPage() {
             </span>
           </p>
         )}
-        {exp.hypothesis && <p className="mt-2 italic text-sm" style={{ color: '#9aa0ae' }}>{exp.hypothesis}</p>}
+        {exp.hypothesis && <p className="mt-2 italic text-sm" style={{ color: '#64748b' }}>{exp.hypothesis}</p>}
         <div className="mt-4">
           <div className="flex justify-between text-sm">
             <span>Day {dayNum} of {exp.duration_days}</span>
@@ -213,11 +213,11 @@ export default function ExperimentPage() {
             }} />
           ))}
         </div>
-        <p className="mt-2 text-xs" style={{ color: '#9aa0ae' }}>{heldCount} of {exp.duration_days} days held</p>
+        <p className="mt-2 text-xs" style={{ color: '#64748b' }}>{heldCount} of {exp.duration_days} days held</p>
       </div>
 
       <div className="card mt-4 p-5">
-        <p className="text-xs font-semibold tracking-wider" style={{ color: '#9aa0ae' }}>WEIGHT CHANGE</p>
+        <p className="text-xs font-semibold tracking-wider" style={{ color: '#64748b' }}>WEIGHT CHANGE</p>
         {!unlocked ? (
           anchor && runDelta != null ? (
             <>
@@ -225,10 +225,10 @@ export default function ExperimentPage() {
                 <span style={{ color: '#e0607e' }}>{runDelta > 0 ? '+' : ''}{runDelta.toFixed(1)} lb</span>
                 <span className="text-xl"> vs day 1</span>
               </p>
-              <p className="mt-1 text-xs" style={{ color: '#9aa0ae' }}>Anchor {anchor.weight_lb.toFixed(1)} lb · {fmtD(anchor.log_date)}. Signal check, not proof.</p>
+              <p className="mt-1 text-xs" style={{ color: '#64748b' }}>Anchor {anchor.weight_lb.toFixed(1)} lb · {fmtD(anchor.log_date)}. Signal check, not proof.</p>
             </>
           ) : (
-            <p className="mt-2 text-sm" style={{ color: '#9aa0ae' }}>Weigh in daily on the Weight tab. Day 1 sets the anchor.</p>
+            <p className="mt-2 text-sm" style={{ color: '#64748b' }}>Weigh in daily on the Weight tab. Day 1 sets the anchor.</p>
           )
         ) : verdictDelta != null ? (
           <>
@@ -236,10 +236,10 @@ export default function ExperimentPage() {
               <span style={{ color: '#e0607e' }}>{verdictDelta > 0 ? '+' : ''}{verdictDelta.toFixed(1)} lb</span>
               <span className="text-xl"> vs last week</span>
             </p>
-            <p className="mt-1 text-xs" style={{ color: '#9aa0ae' }}>Week median {thisMed!.toFixed(1)} lb vs prior week {lastMed!.toFixed(1)} lb. Signal check, not proof.</p>
+            <p className="mt-1 text-xs" style={{ color: '#64748b' }}>Week median {thisMed!.toFixed(1)} lb vs prior week {lastMed!.toFixed(1)} lb. Signal check, not proof.</p>
           </>
         ) : (
-          <p className="mt-2 text-sm" style={{ color: '#9aa0ae' }}>Not enough weigh-ins for the week comparison.</p>
+          <p className="mt-2 text-sm" style={{ color: '#64748b' }}>Not enough weigh-ins for the week comparison.</p>
         )}
         {inExp.length >= 2 && (
           <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 w-full" style={{ maxHeight: 150 }}>
@@ -247,10 +247,10 @@ export default function ExperimentPage() {
               <line x1={0} x2={W} y1={yFor(thisMed)} y2={yFor(thisMed)} stroke="#e0607e" strokeWidth={1.5} />
             )}
             {!unlocked && anchor && (
-              <line x1={0} x2={W} y1={yFor(anchor.weight_lb)} y2={yFor(anchor.weight_lb)} stroke="#9aa0ae" strokeWidth={1.5} strokeDasharray="5 4" />
+              <line x1={0} x2={W} y1={yFor(anchor.weight_lb)} y2={yFor(anchor.weight_lb)} stroke="#64748b" strokeWidth={1.5} strokeDasharray="5 4" />
             )}
             {unlocked && lastMed != null && (
-              <line x1={0} x2={W} y1={yFor(lastMed)} y2={yFor(lastMed)} stroke="#9aa0ae" strokeWidth={1.5} strokeDasharray="5 4" />
+              <line x1={0} x2={W} y1={yFor(lastMed)} y2={yFor(lastMed)} stroke="#64748b" strokeWidth={1.5} strokeDasharray="5 4" />
             )}
             <polyline
               points={inExp.map((w) => `${xFor(w.log_date)},${yFor(w.weight_lb)}`).join(' ')}
@@ -264,11 +264,11 @@ export default function ExperimentPage() {
           </svg>
         )}
         {inExp.length >= 2 && (
-          <p className="mt-1 text-xs" style={{ color: '#9aa0ae' }}>
+          <p className="mt-1 text-xs" style={{ color: '#64748b' }}>
             {!unlocked && anchor ? (
-              <><span style={{ color: '#9aa0ae' }}>- -</span> day-1 anchor ({anchor.weight_lb.toFixed(1)} lb)</>
+              <><span style={{ color: '#64748b' }}>- -</span> day-1 anchor ({anchor.weight_lb.toFixed(1)} lb)</>
             ) : (
-              <><span style={{ color: '#e0607e' }}>—</span> this week median&nbsp;&nbsp;<span style={{ color: '#9aa0ae' }}>- -</span> pre-experiment median</>
+              <><span style={{ color: '#e0607e' }}>—</span> this week median&nbsp;&nbsp;<span style={{ color: '#64748b' }}>- -</span> pre-experiment median</>
             )}
           </p>
         )}
@@ -276,7 +276,7 @@ export default function ExperimentPage() {
 
       <div className="card mt-4 p-5">
         <div className="flex justify-between items-center">
-          <p className="text-xs font-semibold tracking-wider" style={{ color: '#9aa0ae' }}>BASELINE – THE CONTROL</p>
+          <p className="text-xs font-semibold tracking-wider" style={{ color: '#64748b' }}>BASELINE – THE CONTROL</p>
           {baselineHeldPct != null && (
             <p className="text-sm font-bold" style={{ color: '#e0607e' }}>{Math.round(baselineHeldPct * 100)}% held</p>
           )}
@@ -289,15 +289,15 @@ export default function ExperimentPage() {
       </div>
 
       <div className="card mt-4 p-5">
-        <p className="text-xs font-semibold tracking-wider" style={{ color: '#9aa0ae' }}>VERDICT</p>
+        <p className="text-xs font-semibold tracking-wider" style={{ color: '#64748b' }}>VERDICT</p>
         {unlocked ? (
           <div className="mt-3 flex gap-2">
             <button onClick={() => verdict('keep')} disabled={acting} className="btn flex-1">Keep it</button>
             <button onClick={() => verdict('another_week')} disabled={acting} className="btn flex-1" style={{ background: 'transparent', border: '1px solid #e0607e', color: '#e0607e' }}>Another week</button>
-            <button onClick={() => verdict('drop')} disabled={acting} className="btn flex-1" style={{ background: 'transparent', border: '1px solid #4a5160', color: '#9aa0ae' }}>Drop it</button>
+            <button onClick={() => verdict('drop')} disabled={acting} className="btn flex-1" style={{ background: 'transparent', border: '1px solid #4a5160', color: '#64748b' }}>Drop it</button>
           </div>
         ) : (
-          <p className="mt-2 text-sm" style={{ color: '#9aa0ae' }}>Verdict unlocks {fmtD(exp.end_date)} – decisions on Day {exp.duration_days}.</p>
+          <p className="mt-2 text-sm" style={{ color: '#64748b' }}>Verdict unlocks {fmtD(exp.end_date)} – decisions on Day {exp.duration_days}.</p>
         )}
       </div>
     </main>

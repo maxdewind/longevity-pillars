@@ -30,18 +30,18 @@ export default function SiteChrome({ children }: { children: React.ReactNode }) 
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-ink/90 backdrop-blur border-b border-white/5">
+      <header className="sticky top-0 z-40 bg-ink/90 backdrop-blur border-b border-slate-200">
         <div className="max-w-md mx-auto px-4 h-14 flex items-center justify-between">
           <span className="font-semibold tracking-tight">Longevity Pillars</span>
           <SignOutButton />
         </div>
-        <div className="border-t border-white/5">
+        <div className="border-t border-slate-200">
           <div className="max-w-md mx-auto px-4 py-1 text-center">
             <a
               href="https://x.com/HealthLadderX/status/2107293774506234247"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[11px] text-[#9aa0ae] hover:text-slate-200"
+              className="text-[11px] text-[#64748b] hover:text-slate-700"
             >
               Health Ladder · Rung 1 - Protocol
             </a>
@@ -51,7 +51,7 @@ export default function SiteChrome({ children }: { children: React.ReactNode }) 
 
       <main className="max-w-md mx-auto px-4 pt-4 pb-28">{children}</main>
 
-      <nav className="fixed bottom-0 inset-x-0 z-40 border-t border-white/5 bg-ink/95 backdrop-blur">
+      <nav className="fixed bottom-0 inset-x-0 z-40 border-t border-slate-200 bg-ink/95 backdrop-blur">
         <div className="max-w-md mx-auto grid grid-cols-6">
           {NAV.map((item) => {
             const active =

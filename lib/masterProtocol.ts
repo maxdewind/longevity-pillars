@@ -50,8 +50,13 @@ export interface MasterDailyRoutine {
 
 // Daily pool only. Labels already in the classic pool (Keep positive
 // thoughts, Morning fuel cap) are skipped at seed time, not duplicated.
+export const FIXED_FIRST_MIND_LABEL = 'I am in control of my daily habits'
+
 export const MASTER_DAILY_ROUTINES: MasterDailyRoutine[] = [
-  // Mind and Stress
+  // Mind and Stress, fixed first card (user, 2026-10-24). It always
+  // appears first in the Mind section and counts toward Mind's 3, so
+  // Mind daily is this fixed card plus 2 random others.
+  { pillar: 'mind', label: FIXED_FIRST_MIND_LABEL, detail: 'I am in control of my daily habits.' },
   { pillar: 'mind', label: 'Morning plan and commitment ritual', detail: 'Plan the day and commit in the morning.' },
   { pillar: 'mind', label: 'Affirmation rounds during training and walks', detail: 'Affirmations during training and on walks.' },
   { pillar: 'mind', label: 'Meditation and cyclic sighing', detail: 'Meditation and cyclic sighing.' },

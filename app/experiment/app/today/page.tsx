@@ -176,7 +176,7 @@ export default function LevelsTodayPage() {
                   type="button"
                   onClick={() => toggle(p.id, 'committed')}
                   className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${
-                    c.committed ? 'border-accent bg-accent/10 text-accent' : 'border-white/10 text-muted'
+                    c.committed ? 'border-accent bg-accent/10 text-accent' : 'border-slate-200 text-muted'
                   }`}
                 >
                   {c.committed ? '✓ Committed' : 'Committed'}
@@ -185,7 +185,7 @@ export default function LevelsTodayPage() {
                   type="button"
                   onClick={() => toggle(p.id, 'held')}
                   className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${
-                    c.held ? 'border-accent bg-accent/10 text-accent' : 'border-white/10 text-muted'
+                    c.held ? 'border-accent bg-accent/10 text-accent' : 'border-slate-200 text-muted'
                   }`}
                 >
                   {c.held ? '✓ Held' : 'Held'}

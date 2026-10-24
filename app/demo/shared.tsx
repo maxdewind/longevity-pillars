@@ -16,7 +16,7 @@ export function statePill(on: boolean, label: string) {
   return (
     <span
       className={`text-xs font-semibold px-3 py-2 rounded-lg border whitespace-nowrap ${
-        on ? 'bg-[#f0506e] border-[#f0506e] text-white' : 'border-[#2c313d] text-[#9aa0ae]'
+        on ? 'bg-[#f0506e] border-[#f0506e] text-white' : 'border-slate-300 text-[#64748b]'
       }`}
     >
       {on ? `✓ ${label}` : label}

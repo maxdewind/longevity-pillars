@@ -142,7 +142,7 @@ export default function MetricEntryForm({ initialValues = {}, onSaved }: Props) 
               placeholder={PLACEHOLDERS[k]}
               value={values[k] ?? ''}
               onChange={(e) => setValues((v) => ({ ...v, [k]: e.target.value }))}
-              className="mt-2 w-full bg-ink border border-white/10 rounded-lg px-3 py-2 text-white"
+              className="mt-2 w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
             />
             {k === 'sleep_hours' && (
               <p className="text-xs text-muted mt-1">Colon or just digits: 7:30 or 730.</p>
