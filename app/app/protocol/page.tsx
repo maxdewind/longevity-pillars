@@ -29,14 +29,24 @@ interface HistoryRow {
 const UNCHECKED: CheckState = { committed: false, held: false, held_at: null }
 const TRAILING_DAYS = 14
 const WEEKLY_TARGET = 3
+const DRAW_PER_PILLAR = 3
+const FOCUS_DAYS = 7
+
+const PILLARS: { key: Protocol['pillar']; label: string }[] = [
+  { key: 'mind', label: 'Mind' },
+  { key: 'nutrition', label: 'Nutrition' },
+  { key: 'movement', label: 'Movement' },
+  { key: 'sleep', label: 'Sleep' },
+  { key: 'social', label: 'Social connections' },
+]
 
 function daysBetween(a: string, b: string): number {
   return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000)
 }
 
-function dayISO(daysAgo: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() - daysAgo)
+function addDaysISO(iso: string, days: number): string {
+  const d = new Date(iso + 'T12:00:00')
+  d.setDate(d.getDate() + days)
   return todayISO(d)
 }
 
@@ -44,16 +54,83 @@ function fmtShort(iso: string): string {
   return new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+// Deterministic daily shuffle: the same pillar draws the same 3 habits all
+// day (so morning Committed and night Held line up), and a new set tomorrow.
+// Seeded only by the date and the pillar, never by the user, so no server
+// table is needed to remember today's draw.
+function hashString(s: string): number {
+  let h = 2166136261
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return h >>> 0
+}
+
+function seededShuffle<T>(arr: T[], seed: number): T[] {
+  const out = [...arr]
+  let state = seed || 1
+  const next = () => {
+    state |= 0
+    state = (state + 0x6d2b79f5) | 0
+    let t = Math.imul(state ^ (state >>> 15), 1 | state)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1))
+    ;[out[i], out[j]] = [out[j], out[i]]
+  }
+  return out
+}
+
+interface Card {
+  key: string
+  title: string
+  detail: string
+  rows: Protocol[]
+}
+
+function toCards(ps: Protocol[]): Card[] {
+  const cards: Card[] = []
+  ps.forEach((p) => {
+    if (p.card_group) {
+      const existing = cards.find((c) => c.key === p.card_group)
+      if (existing) {
+        existing.rows.push(p)
+        existing.rows.sort((a, b) => a.label.localeCompare(b.label))
+        return
+      }
+      cards.push({
+        key: p.card_group as string,
+        title: p.label.replace(/ \(Meal \d\)$/, ''),
+        detail: p.detail,
+        rows: [p],
+      })
+      return
+    }
+    cards.push({ key: p.id, title: p.label, detail: p.detail, rows: [p] })
+  })
+  return cards
+}
+
 export default function ProtocolPage() {
   const [protocols, setProtocols] = useState<Protocol[]>([])
   const [checks, setChecks] = useState<Record<string, CheckState>>({})
   const [counts, setCounts] = useState<Record<string, CountState>>({})
   const [history, setHistory] = useState<HistoryRow[]>([])
-  const [resolution, setResolution] = useState('')
   const [loading, setLoading] = useState(true)
   const [confirmClear, setConfirmClear] = useState<Protocol | null>(null)
   const [experiment, setExperiment] = useState<Experiment | null>(null)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [showLibrary, setShowLibrary] = useState(false)
+  const [newLabel, setNewLabel] = useState('')
+  const [newDetail, setNewDetail] = useState('')
+  const [newPillar, setNewPillar] = useState<Protocol['pillar']>('nutrition')
+  const [adding, setAdding] = useState(false)
+
+  const today = todayISO()
 
   useEffect(() => {
     const load = async () => {
@@ -61,12 +138,13 @@ export default function ProtocolPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setLoading(false); return }
 
-      const { data: protos } = await supabase
+      const { data: protos, error: pErr } = await supabase
         .from('protocols')
         .select('*')
         .eq('user_id', user.id)
         .eq('track', 'classic')
         .order('position', { ascending: true })
+      if (pErr) setActionError(pErr.message)
 
       const { data: rows } = await supabase
         .from('protocol_checks')
@@ -81,10 +159,9 @@ export default function ProtocolPage() {
       })
       setChecks(map)
 
-      // Trailing-14-day counts per protocol (read-only evidence line).
       const cutoff = new Date()
       cutoff.setDate(cutoff.getDate() - (TRAILING_DAYS - 1))
-      const [{ data: recent }, { data: firstRow }, { data: profile }] = await Promise.all([
+      const [{ data: recent }, { data: firstRow }] = await Promise.all([
         supabase
           .from('protocol_checks')
           .select('protocol_id, committed, held, log_date')
@@ -96,18 +173,12 @@ export default function ProtocolPage() {
           .eq('user_id', user.id)
           .order('log_date', { ascending: true })
           .limit(1),
-        supabase
-          .from('profiles')
-          .select('resolution')
-          .eq('id', user.id)
-          .single(),
       ])
       setHistory(((recent ?? []) as HistoryRow[]).map((r) => ({
         protocol_id: r.protocol_id,
         held: !!r.held,
         log_date: r.log_date,
       })))
-      setResolution((profile?.resolution as string | undefined) ?? '')
       const { data: expRows } = await supabase
         .from('experiments')
         .select('*')
@@ -117,10 +188,8 @@ export default function ProtocolPage() {
         .limit(1)
       setExperiment(((expRows as Experiment[] | null) ?? [])[0] ?? null)
       const firstDate = (firstRow?.[0]?.log_date as string | undefined) ?? todayISO()
-      const today = todayISO()
       const countMap: Record<string, CountState> = {}
       ;((protos as Protocol[] | null) ?? []).forEach((p) => {
-        // Counts start when the routine was added, not at the journey start.
         const addedOn = (p.created_at ?? '').slice(0, 10)
         const start = addedOn && addedOn > firstDate ? addedOn : firstDate
         const pr = ((recent ?? []) as { protocol_id: string; committed: boolean; held: boolean; log_date: string }[]).filter(
@@ -138,6 +207,7 @@ export default function ProtocolPage() {
       setLoading(false)
     }
     load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const toggle = async (p: Protocol, key: 'committed' | 'held') => {
@@ -147,7 +217,7 @@ export default function ProtocolPage() {
     const current = checks[p.id] ?? UNCHECKED
     const next = { ...current, [key]: !current[key] }
     setChecks((c) => ({ ...c, [p.id]: next }))
-    await supabase.from('protocol_checks').upsert(
+    const { error } = await supabase.from('protocol_checks').upsert(
       {
         user_id: user.id,
         protocol_id: p.id,
@@ -157,15 +227,10 @@ export default function ProtocolPage() {
       },
       { onConflict: 'user_id,protocol_id,log_date' }
     )
+    if (error) setActionError(error.message)
+    else setActionError(null)
   }
 
-  // (toggleCardCommitted / toggleCardMandatory above handle the grouped card.)
-
-  // The Meal 2 row of the two-meals card is the "Meal end" timestamp button.
-  // One tap stamps when the meal ended AND marks held (the timestamp is the
-  // evidence). Tapping it again asks for confirmation before clearing, since
-  // the stamp feeds the meal-sleep gap - an accidental clear loses the data.
-  // To move the stamp to a later time, confirm the clear, then tap again.
   const isMealEnd = (p: Protocol) =>
     p.card_group === 'two-meals' && / \(Meal 2\)$/.test(p.label)
 
@@ -179,7 +244,7 @@ export default function ProtocolPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     setChecks((c) => ({ ...c, [p.id]: next }))
-    await supabase.from('protocol_checks').upsert(
+    const { error } = await supabase.from('protocol_checks').upsert(
       {
         user_id: user.id,
         protocol_id: p.id,
@@ -190,6 +255,8 @@ export default function ProtocolPage() {
       },
       { onConflict: 'user_id,protocol_id,log_date' }
     )
+    if (error) setActionError(error.message)
+    else setActionError(null)
   }
 
   const onMealEndTap = (p: Protocol) => {
@@ -200,84 +267,6 @@ export default function ProtocolPage() {
     }
     void writeMealEnd(p, { ...current, held: true, held_at: new Date().toISOString() })
   }
-
-  // A "miss" is a past day whose check row was left unheld, or a past day with
-  // no check row at all once the routine became mandatory (mandatory means
-  // daily, so an unlogged day cannot count as held). Days before the routine
-  // became mandatory are unknown, not misses. Weekly-cadence routines are
-  // scored per week, never per day, so they can never miss a single day.
-  const missedOn = (p: Protocol, daysAgo: number): boolean => {
-    if (p.cadence === 'weekly') return false
-    const date = dayISO(daysAgo)
-    const row = history.find((h) => h.protocol_id === p.id && h.log_date === date)
-    if (row) return !row.held
-    if (!p.is_mandatory || !p.mandatory_since) return false
-    return date >= p.mandatory_since
-  }
-
-  // Tripwires fire on mandatory routines only. Interventions, never resets.
-  const banners: { key: string; title: string; body: string }[] = []
-  protocols
-    .filter((p) => p.is_mandatory)
-    .forEach((p) => {
-      if (missedOn(p, 1) && missedOn(p, 2)) {
-        banners.push({
-          key: `${p.id}-consec`,
-          title: `Two missed days in a row on ${p.label}.`,
-          body: resolution
-            ? `"${resolution}"`
-            : 'Your resolution lives on the Record page. Go reread it, that is what it is for.',
-        })
-        return
-      }
-      let n = 0
-      for (let off = 1; off <= 7; off++) if (missedOn(p, off)) n++
-      if (n >= 3) {
-        banners.push({
-          key: `${p.id}-freq`,
-          title: `You've missed ${n} of the last 7 days on ${p.label}.`,
-          body: "What's getting in the way?",
-        })
-      }
-    })
-
-  const dateLabel = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-
-  // Rows that share a card_group render as ONE card (e.g. the two meal rows).
-  // Committed is per card (one tap commits every row); Held stays per row.
-  interface Card {
-    key: string
-    title: string
-    detail: string
-    rows: Protocol[]
-  }
-
-  const toCards = (ps: Protocol[]): Card[] => {
-    const cards: Card[] = []
-    ps.forEach((p) => {
-      if (p.card_group) {
-        const existing = cards.find((c) => c.key === p.card_group)
-        if (existing) {
-          existing.rows.push(p)
-          existing.rows.sort((a, b) => a.label.localeCompare(b.label))
-          return
-        }
-        cards.push({
-          key: p.card_group as string,
-          title: p.label.replace(/ \(Meal \d\)$/, ''),
-          detail: p.detail,
-          rows: [p],
-        })
-        return
-      }
-      cards.push({ key: p.id, title: p.label, detail: p.detail, rows: [p] })
-    })
-    return cards
-  }
-
-  const nutrition = toCards(protocols.filter((p) => p.pillar === 'nutrition'))
-  const movement = toCards(protocols.filter((p) => p.pillar === 'movement'))
-  const mind = toCards(protocols.filter((p) => p.pillar === 'mind'))
 
   const toggleCardCommitted = async (card: Card) => {
     const supabase = createClient()
@@ -290,7 +279,7 @@ export default function ProtocolPage() {
       nextChecks[r.id] = { ...current, committed: next }
     })
     setChecks(nextChecks)
-    await Promise.all(
+    const results = await Promise.all(
       card.rows.map((r) => {
         const s = nextChecks[r.id]
         return supabase.from('protocol_checks').upsert(
@@ -305,46 +294,134 @@ export default function ProtocolPage() {
         )
       })
     )
+    const err = results.find((r) => r.error)?.error
+    if (err) setActionError(err.message)
+    else setActionError(null)
   }
 
-  const toggleCardMandatory = async (card: Card) => {
+  // --- Habit-draw actions: Pause, Retire, Needs focus -------------------
+  const updateCard = async (card: Card, patch: Partial<Protocol>) => {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const next = !card.rows[0].is_mandatory
-    const nextSince = next ? todayISO() : null
     const ids = new Set(card.rows.map((r) => r.id))
-    setProtocols((ps) =>
-      ps.map((x) => (ids.has(x.id) ? { ...x, is_mandatory: next, mandatory_since: nextSince } : x))
+    setProtocols((ps) => ps.map((x) => (ids.has(x.id) ? { ...x, ...patch } : x)))
+    const results = await Promise.all(
+      card.rows.map((r) => supabase.from('protocols').update(patch).eq('id', r.id))
     )
-    await Promise.all(
-      card.rows.map((r) =>
-        supabase
-          .from('protocols')
-          .update({ is_mandatory: next, mandatory_since: nextSince })
-          .eq('id', r.id)
-      )
-    )
+    const err = results.find((r) => r.error)?.error
+    if (err) {
+      setActionError(err.message)
+    } else {
+      setActionError(null)
+    }
   }
+
+  const isRetired = (card: Card) => card.rows.some((r) => r.retired)
+  const isPausedToday = (card: Card) => card.rows.some((r) => r.paused_on === today)
+  const isFocused = (card: Card) => card.rows.some((r) => r.focus_until && r.focus_until >= today)
+  const focusUntil = (card: Card) => card.rows.map((r) => r.focus_until).filter(Boolean).sort()[0] ?? null
+
+  const onPause = (card: Card) => void updateCard(card, { paused_on: today })
+  const onRetire = (card: Card) => void updateCard(card, { retired: true })
+  const onRestore = (card: Card) => void updateCard(card, { retired: false, paused_on: null, focus_until: null })
+  const onFocus = (card: Card) => {
+    if (isFocused(card)) {
+      void updateCard(card, { focus_until: null })
+    } else {
+      // Today plus the next 6 days: in the draw for the next week.
+      void updateCard(card, { focus_until: addDaysISO(today, FOCUS_DAYS - 1) })
+    }
+  }
+
+  const onAddHabit = async () => {
+    const label = newLabel.trim()
+    if (!label || adding) return
+    setAdding(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setAdding(false); return }
+    const samePillar = protocols.filter((p) => p.pillar === newPillar)
+    const position = samePillar.length ? Math.max(...samePillar.map((p) => p.position)) + 1 : 1
+    const { data, error } = await supabase
+      .from('protocols')
+      .insert({
+        user_id: user.id,
+        track: 'classic',
+        pillar: newPillar,
+        label,
+        detail: newDetail.trim(),
+        position,
+        enabled: true,
+      })
+      .select('*')
+      .single()
+    if (error) {
+      setActionError(error.message)
+    } else {
+      setActionError(null)
+      if (data) setProtocols((ps) => [...ps, data as Protocol])
+      setNewLabel('')
+      setNewDetail('')
+    }
+    setAdding(false)
+  }
+
+  const dateLabel = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
   const shortHalfName = (label: string): string => {
     const m = label.match(/ \((Meal \d)\)$/)
     return m ? m[1] : label
   }
 
+  const smallBtn = (active: boolean): React.CSSProperties => ({
+    background: active ? '#3a2a2e' : 'rgba(255,255,255,0.05)',
+    color: active ? '#f0a0b0' : '#c9ccd4',
+    border: `1px solid ${active ? '#e0607e' : 'rgba(255,255,255,0.1)'}`,
+  })
+
+  const renderSmallActions = (card: Card) => {
+    const focused = isFocused(card)
+    const paused = isPausedToday(card)
+    const retired = isRetired(card)
+    const until = focusUntil(card)
+    return (
+      <div>
+        <div className="grid grid-cols-3 gap-2 mt-3">
+          <button type="button" onClick={() => onPause(card)} className="text-xs px-2 py-2 rounded-xl" style={smallBtn(paused)} disabled={retired}>
+            {paused ? 'Paused today' : 'Pause'}
+          </button>
+          <button type="button" onClick={() => onRetire(card)} className="text-xs px-2 py-2 rounded-xl" style={smallBtn(retired)} disabled={retired}>
+            Retire
+          </button>
+          <button type="button" onClick={() => onFocus(card)} className="text-xs px-2 py-2 rounded-xl" style={smallBtn(focused)} disabled={retired}>
+            {focused ? 'Focused' : 'Needs focus'}
+          </button>
+        </div>
+        {focused && until && (
+          <p className="text-xs mt-2" style={{ color: '#9aa0ae' }}>
+            Needs focus until {fmtShort(until)}: it stays in the daily 3 for this pillar.
+          </p>
+        )}
+        {paused && !retired && (
+          <p className="text-xs mt-2" style={{ color: '#9aa0ae' }}>
+            Paused today only. It is back in the draw tomorrow.
+          </p>
+        )}
+      </div>
+    )
+  }
+
   const renderCard = (card: Card) => {
     const rows = card.rows
     const split = rows.length > 1
     const committedOn = rows.every((r) => (checks[r.id] ?? UNCHECKED).committed)
-    const mandatory = rows[0].is_mandatory
     const experimental = rows.some((r) => r.is_experimental)
-    const missedYesterday = rows.some((r) => r.is_mandatory && missedOn(r, 1))
     const weeklyRow = rows.length === 1 ? rows[0] : null
     const isWeekly = !!weeklyRow && weeklyRow.cadence === 'weekly'
-    // Sessions held since Monday (weekly routines aggregate Mon-Sun).
     const monday = (() => {
       const d = new Date()
-      const dow = (d.getDay() + 6) % 7 // 0 = Monday
+      const dow = (d.getDay() + 6) % 7
       d.setDate(d.getDate() - dow)
       return todayISO(d)
     })()
@@ -367,20 +444,17 @@ export default function ProtocolPage() {
                 Experimental
               </span>
             )}
+            {isFocused(card) && (
+              <span className="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style={{ background: '#3a2a2e', color: '#f0a0b0' }}>
+                Needs focus
+              </span>
+            )}
           </span>
           <span style={{ color: '#9aa0ae' }}>{expanded[card.key] ? '▾' : '▸'}</span>
         </button>
         {expanded[card.key] && (
           <p className="text-sm mt-1" style={{ color: '#9aa0ae' }}>{card.detail}</p>
         )}
-        <button
-          type="button"
-          onClick={() => toggleCardMandatory(card)}
-          className="text-xs mt-2 underline"
-          style={{ color: '#9aa0ae' }}
-        >
-          {mandatory ? 'Mandatory · tap to unmark' : 'Not mandatory · tap to make mandatory'}
-        </button>
         {split ? (
           <div className="grid grid-cols-4 gap-2 mt-3">
             <button
@@ -436,6 +510,7 @@ export default function ProtocolPage() {
             </button>
           </div>
         )}
+        {renderSmallActions(card)}
         {isWeekly ? (
           <p className="text-xs tabular-nums mt-2 font-medium" style={{ color: '#c9ccd4' }}>
             {weeklySessions} of {WEEKLY_TARGET} sessions this week (Mon-Sun)
@@ -464,24 +539,76 @@ export default function ProtocolPage() {
             ) : null
           })()
         )}
-        {missedYesterday && (
-          <p className="text-xs mt-2 font-medium" style={{ color: '#c9ccd4' }}>
-            It was one day only - get back to routine!
-          </p>
+      </div>
+    )
+  }
+
+  const renderLibraryCard = (card: Card) => {
+    const retired = isRetired(card)
+    const focused = isFocused(card)
+    return (
+      <div key={card.key} className="card">
+        <p className="font-bold">
+          {card.title}
+          {focused && (
+            <span className="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style={{ background: '#3a2a2e', color: '#f0a0b0' }}>
+              Needs focus
+            </span>
+          )}
+          {retired && (
+            <span className="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style={{ background: '#2a2d36', color: '#9aa0ae' }}>
+              Retired
+            </span>
+          )}
+        </p>
+        {card.detail && <p className="text-sm mt-1" style={{ color: '#9aa0ae' }}>{card.detail}</p>}
+        {retired ? (
+          <button type="button" onClick={() => onRestore(card)} className="text-xs px-2 py-2 rounded-xl mt-3" style={smallBtn(false)}>
+            Restore to the pool
+          </button>
+        ) : (
+          renderSmallActions(card)
         )}
       </div>
     )
   }
 
+  // Daily draw, per pillar: Needs focus cards first, then a seeded random
+  // shuffle of the rest, take 3. Paused-today and retired cards never draw.
+  // A paused or retired card frees its slot, so a replacement draws in.
+  const dailyForPillar = (pillar: Protocol['pillar']): { cards: Card[]; pool: Card[] } => {
+    const allCards = toCards(protocols.filter((p) => p.pillar === pillar))
+    const pool = allCards.filter((c) => !isRetired(c))
+    const eligible = allCards.filter((c) => !isRetired(c) && !isPausedToday(c))
+    const focused = eligible.filter((c) => isFocused(c)).sort((a, b) => a.rows[0].position - b.rows[0].position)
+    const rest = seededShuffle(
+      eligible.filter((c) => !isFocused(c)),
+      hashString(`${today}:${pillar}`)
+    )
+    const drawn = [...focused, ...rest].slice(0, DRAW_PER_PILLAR)
+    return { cards: drawn, pool }
+  }
+
+  const retiredCards = toCards(protocols.filter((p) => p.retired))
+
   return (
     <main className="max-w-md mx-auto px-4 py-6 space-y-4">
-      <h1 className="text-xl font-bold">Today&apos;s protocol · {dateLabel}</h1>
+      <h1 className="text-xl font-bold">Today&apos;s habits · {dateLabel}</h1>
       <p className="text-sm" style={{ color: '#9aa0ae' }}>
+        Each day, 3 habits per pillar are drawn at random from your full pool.
         Committed is the promise you make each morning. Held is what you record
-        each night. Both start unchecked every day.
+        each night. Needs focus keeps a habit in the daily 3 for a week.
+        Pause skips today only. Retire moves it to the retired list below.
       </p>
 
       {loading && <p className="text-sm" style={{ color: '#9aa0ae' }}>Loading...</p>}
+
+      {actionError && (
+        <div className="card" style={{ borderColor: '#e0607e' }}>
+          <p className="text-sm font-bold" style={{ color: '#e0607e' }}>That did not save</p>
+          <p className="text-sm mt-1" style={{ color: '#9aa0ae' }}>{actionError}</p>
+        </div>
+      )}
 
       {!loading && experiment && (
         <Link href="/app/experiment" className="card block" style={{ textDecoration: 'none', borderColor: '#e0607e' }}>
@@ -498,45 +625,85 @@ export default function ProtocolPage() {
         </Link>
       )}
 
-      {!loading && banners.length > 0 && (
-        <section className="space-y-3">
-          {banners.map((b) => (
-            <div key={b.key} className="card">
-              <button
-                type="button"
-                onClick={() => setExpanded((e) => ({ ...e, [b.key]: !e[b.key] }))}
-                className="w-full text-left flex items-start justify-between gap-2"
-                style={{ background: 'none' }}
-              >
-                <span className="text-sm font-bold">{b.title}</span>
-                <span style={{ color: '#9aa0ae' }}>{expanded[b.key] ? '▾' : '▸'}</span>
-              </button>
-              {expanded[b.key] && (
-                <p className="text-sm mt-1 italic" style={{ color: '#9aa0ae' }}>{b.body}</p>
-              )}
-            </div>
-          ))}
-        </section>
-      )}
+      <button
+        type="button"
+        onClick={() => setShowLibrary((v) => !v)}
+        className="btn-ghost w-full"
+      >
+        {showLibrary ? 'Hide full library' : 'Show full library · add a habit'}
+      </button>
 
-      {!loading && mind.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-base font-bold">Mind</h2>
-          {mind.map(renderCard)}
-        </section>
-      )}
+      {!loading && PILLARS.map(({ key, label }) => {
+        const { cards, pool } = dailyForPillar(key)
+        return (
+          <section key={key} className="space-y-3">
+            <h2 className="text-base font-bold">{label}</h2>
+            {pool.length === 0 && (
+              <p className="text-sm" style={{ color: '#9aa0ae' }}>No habits yet in this pillar.</p>
+            )}
+            {pool.length > 0 && cards.length === 0 && (
+              <p className="text-sm" style={{ color: '#9aa0ae' }}>All habits in this pillar are paused or retired today.</p>
+            )}
+            {pool.length > 0 && (
+              <p className="text-xs" style={{ color: '#9aa0ae' }}>{cards.length} of {pool.length} drawn today</p>
+            )}
+            {cards.map(renderCard)}
+          </section>
+        )
+      })}
 
-      {!loading && nutrition.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-base font-bold">Nutrition</h2>
-          {nutrition.map(renderCard)}
-        </section>
-      )}
+      {!loading && showLibrary && (
+        <section className="space-y-4">
+          <h2 className="text-base font-bold">Full library</h2>
+          <div className="card space-y-3">
+            <p className="font-bold">Add a habit to the pool</p>
+            <input
+              type="text"
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+              placeholder="Habit, e.g. Call a friend"
+              className="w-full rounded-xl px-3 py-2 bg-white/5 border border-white/10"
+            />
+            <input
+              type="text"
+              value={newDetail}
+              onChange={(e) => setNewDetail(e.target.value)}
+              placeholder="Detail (optional)"
+              className="w-full rounded-xl px-3 py-2 bg-white/5 border border-white/10"
+            />
+            <select
+              value={newPillar}
+              onChange={(e) => setNewPillar(e.target.value as Protocol['pillar'])}
+              className="w-full rounded-xl px-3 py-2 bg-white/5 border border-white/10"
+            >
+              {PILLARS.map((p) => (
+                <option key={p.key} value={p.key}>{p.label}</option>
+              ))}
+            </select>
+            <button type="button" onClick={() => void onAddHabit()} className="btn-primary w-full" disabled={!newLabel.trim() || adding}>
+              {adding ? 'Adding...' : 'Add to the pool'}
+            </button>
+            <p className="text-xs" style={{ color: '#9aa0ae' }}>A new habit joins tomorrow&apos;s draw, unless you mark it Needs focus.</p>
+          </div>
 
-      {!loading && movement.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-base font-bold">Movement</h2>
-          {movement.map(renderCard)}
+          {PILLARS.map(({ key, label }) => {
+            const cards = toCards(protocols.filter((p) => p.pillar === key && !p.retired))
+            if (cards.length === 0) return null
+            return (
+              <section key={key} className="space-y-3">
+                <h3 className="text-base font-bold">{label}</h3>
+                {cards.map(renderLibraryCard)}
+              </section>
+            )
+          })}
+
+          {retiredCards.length > 0 && (
+            <section className="space-y-3">
+              <h3 className="text-base font-bold">Retired</h3>
+              <p className="text-sm" style={{ color: '#9aa0ae' }}>Retired habits stay here. Restore one any time to put it back in the pool.</p>
+              {retiredCards.map(renderLibraryCard)}
+            </section>
+          )}
         </section>
       )}
 
