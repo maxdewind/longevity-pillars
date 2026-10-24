@@ -57,6 +57,7 @@ export const MASTER_DAILY_ROUTINES: MasterDailyRoutine[] = [
   // appears first in the Mind section and counts toward Mind's 3, so
   // Mind daily is this fixed card plus 2 random others.
   { pillar: 'mind', label: FIXED_FIRST_MIND_LABEL, detail: 'I am in control of my daily habits.' },
+  { pillar: 'mind', label: 'Better ideas will dominate', detail: 'Better ideas will dominate.' },
   { pillar: 'mind', label: 'Morning plan and commitment ritual', detail: 'Plan the day and commit in the morning.' },
   { pillar: 'mind', label: 'Affirmation rounds during training and walks', detail: 'Affirmations during training and on walks.' },
   { pillar: 'mind', label: 'Meditation and cyclic sighing', detail: 'Meditation and cyclic sighing.' },
