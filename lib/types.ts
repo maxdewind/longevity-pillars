@@ -1,6 +1,6 @@
 export interface Profile { id: string; display_name: string | null; resolution: string; created_at: string }
 export interface Attempt { id: string; user_id: string; started_at: string; ended_at: string | null; slip_count: number }
-export interface Protocol { id: string; user_id: string; pillar: 'nutrition' | 'movement' | 'sleep' | 'mind' | 'social'; label: string; detail: string; enabled: boolean; position: number; committed: boolean; is_mandatory: boolean; mandatory_since: string | null; cadence: 'daily' | 'weekly'; is_experimental: boolean; card_group: string | null; created_at: string; retired?: boolean; focus_until?: string | null; paused_on?: string | null }
+export interface Protocol { id: string; user_id: string; pillar: 'nutrition' | 'movement' | 'sleep' | 'mind' | 'social' | 'cardio' | 'family' | 'supplements' | 'preventive' | 'accountability'; label: string; detail: string; enabled: boolean; position: number; committed: boolean; is_mandatory: boolean; mandatory_since: string | null; cadence: 'daily' | 'weekly'; is_experimental: boolean; card_group: string | null; created_at: string; retired?: boolean; focus_until?: string | null; paused_on?: string | null }
 export interface ProtocolCheck { id: string; user_id: string; protocol_id: string; log_date: string; committed: boolean; held: boolean }
 export interface WeightLog { id: string; user_id: string; log_date: string; weight_lb: number }
 export interface MealLog { id: string; user_id: string; log_date: string; meal_number: 1 | 2; description: string }

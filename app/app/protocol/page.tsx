@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { todayISO } from '@/lib/format'
 import type { Protocol, Experiment } from '@/lib/types'
+import { MASTER_PILLARS, MASTER_DAILY_ROUTINES } from '@/lib/masterProtocol'
 
 interface CheckState {
   committed: boolean
@@ -29,16 +30,12 @@ interface HistoryRow {
 const UNCHECKED: CheckState = { committed: false, held: false, held_at: null }
 const TRAILING_DAYS = 14
 const WEEKLY_TARGET = 3
-const DRAW_PER_PILLAR = 3
 const FOCUS_DAYS = 7
 
-const PILLARS: { key: Protocol['pillar']; label: string }[] = [
-  { key: 'mind', label: 'Mind' },
-  { key: 'nutrition', label: 'Nutrition' },
-  { key: 'movement', label: 'Movement' },
-  { key: 'sleep', label: 'Sleep' },
-  { key: 'social', label: 'Social connections' },
-]
+// Master 9 pillars, Mind first and fundamental. Draw counts are the user's:
+// Mind 3, Nutrition 3, Family 2, every other daily pillar 1, Supplements 0
+// (Supplements live in the weekly/monthly review module, not the daily draw).
+const PILLARS = MASTER_PILLARS
 
 function daysBetween(a: string, b: string): number {
   return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000)
@@ -146,13 +143,52 @@ export default function ProtocolPage() {
         .order('position', { ascending: true })
       if (pErr) setActionError(pErr.message)
 
+      // Seed the master daily pool once. Only runs when no master pillar
+      // is present yet. Kept old routines (Keep positive thoughts,
+      // Morning fuel cap) are not duplicated. Old classic routines that
+      // are not in the master list are retired, not deleted, so their
+      // history stays and they can be restored from the library.
+      // Changeroom shake is skipped by the user's word, so it retires here.
+      let protosList = ((protos as Protocol[] | null) ?? [])
+      const hasMaster = protosList.some((p) => ['cardio', 'family', 'preventive', 'accountability'].includes(p.pillar))
+      if (!hasMaster && !pErr) {
+        const existingLabels = new Set(protosList.map((p) => p.label))
+        const toInsert = MASTER_DAILY_ROUTINES
+          .filter((r) => !existingLabels.has(r.label))
+          .map((r, idx) => ({
+            user_id: user.id,
+            track: 'classic',
+            pillar: r.pillar,
+            label: r.label,
+            detail: r.detail,
+            position: 100 + idx,
+            enabled: true,
+            cadence: 'daily',
+          }))
+        const { error: seedErr } = await supabase.from('protocols').insert(toInsert)
+        if (seedErr) {
+          setActionError(seedErr.message)
+        } else {
+          const keepLabels = new Set([...MASTER_DAILY_ROUTINES.map((r) => r.label), 'Keep positive thoughts', 'Morning fuel cap'])
+          const toRetire = protosList.filter((p) => p.enabled && !keepLabels.has(p.label))
+          await Promise.all(toRetire.map((p) => supabase.from('protocols').update({ retired: true }).eq('id', p.id)))
+          const { data: refetched } = await supabase
+            .from('protocols')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('track', 'classic')
+            .order('position', { ascending: true })
+          if (refetched) protosList = refetched as Protocol[]
+        }
+      }
+
       const { data: rows } = await supabase
         .from('protocol_checks')
         .select('protocol_id, committed, held, held_at')
         .eq('user_id', user.id)
         .eq('log_date', todayISO())
 
-      setProtocols(((protos as Protocol[] | null) ?? []).filter((p) => p.enabled))
+      setProtocols(protosList.filter((p) => p.enabled))
       const map: Record<string, CheckState> = {}
       ;(rows ?? []).forEach((r) => {
         map[r.protocol_id] = { committed: !!r.committed, held: !!r.held, held_at: (r.held_at as string | null) ?? null }
@@ -189,7 +225,7 @@ export default function ProtocolPage() {
       setExperiment(((expRows as Experiment[] | null) ?? [])[0] ?? null)
       const firstDate = (firstRow?.[0]?.log_date as string | undefined) ?? todayISO()
       const countMap: Record<string, CountState> = {}
-      ;((protos as Protocol[] | null) ?? []).forEach((p) => {
+      ;(protosList).forEach((p) => {
         const addedOn = (p.created_at ?? '').slice(0, 10)
         const start = addedOn && addedOn > firstDate ? addedOn : firstDate
         const pr = ((recent ?? []) as { protocol_id: string; committed: boolean; held: boolean; log_date: string }[]).filter(
@@ -501,13 +537,30 @@ export default function ProtocolPage() {
             >
               Committed
             </button>
-            <button
-              type="button"
-              onClick={() => toggle(rows[0], 'held')}
-              className={(checks[rows[0].id] ?? UNCHECKED).held ? 'btn-primary' : 'btn-ghost'}
-            >
-              Held
-            </button>
+            {card.title === '7 PM meal closure' ? (
+              (() => {
+                const s = checks[rows[0].id] ?? UNCHECKED
+                const t = s.held_at ? fmtTime(s.held_at) : null
+                return (
+                  <button
+                    type="button"
+                    onClick={() => onMealEndTap(rows[0])}
+                    className={s.held ? 'btn-primary' : 'btn-ghost'}
+                    title={t ? 'Tap again to unclick' : 'Stamp when the meal ended'}
+                  >
+                    {t ? `Ended ${t}` : 'Meal end'}
+                  </button>
+                )
+              })()
+            ) : (
+              <button
+                type="button"
+                onClick={() => toggle(rows[0], 'held')}
+                className={(checks[rows[0].id] ?? UNCHECKED).held ? 'btn-primary' : 'btn-ghost'}
+              >
+                Held
+              </button>
+            )}
           </div>
         )}
         {renderSmallActions(card)}
@@ -574,10 +627,12 @@ export default function ProtocolPage() {
   }
 
   // Daily draw, per pillar: Needs focus cards first, then a seeded random
-  // shuffle of the rest, take 3. Paused-today and retired cards never draw.
-  // A paused or retired card frees its slot, so a replacement draws in.
-  const dailyForPillar = (pillar: Protocol['pillar']): { cards: Card[]; pool: Card[] } => {
-    const allCards = toCards(protocols.filter((p) => p.pillar === pillar))
+  // shuffle of the rest, take the pillar's draw count. Paused-today and
+  // retired cards never draw. A paused or retired card frees its slot, so
+  // a replacement draws in. Only daily-cadence cards draw; weekly and
+  // monthly items live on the Review page.
+  const dailyForPillar = (pillar: Protocol['pillar'], draw: number): { cards: Card[]; pool: Card[] } => {
+    const allCards = toCards(protocols.filter((p) => p.pillar === pillar && p.cadence === 'daily'))
     const pool = allCards.filter((c) => !isRetired(c))
     const eligible = allCards.filter((c) => !isRetired(c) && !isPausedToday(c))
     const focused = eligible.filter((c) => isFocused(c)).sort((a, b) => a.rows[0].position - b.rows[0].position)
@@ -585,7 +640,7 @@ export default function ProtocolPage() {
       eligible.filter((c) => !isFocused(c)),
       hashString(`${today}:${pillar}`)
     )
-    const drawn = [...focused, ...rest].slice(0, DRAW_PER_PILLAR)
+    const drawn = [...focused, ...rest].slice(0, draw)
     return { cards: drawn, pool }
   }
 
@@ -595,11 +650,17 @@ export default function ProtocolPage() {
     <main className="max-w-md mx-auto px-4 py-6 space-y-4">
       <h1 className="text-xl font-bold">Today&apos;s habits · {dateLabel}</h1>
       <p className="text-sm" style={{ color: '#9aa0ae' }}>
-        Each day, 3 habits per pillar are drawn at random from your full pool.
+        Daily draw, 13 cards in total: Mind 3, Nutrition 3, Family 2, and 1
+        each for Training, Cardiovascular, Sleep, Preventive, and
+        Accountability. Supplements live in the weekly and monthly review.
         Committed is the promise you make each morning. Held is what you record
-        each night. Needs focus keeps a habit in the daily 3 for a week.
+        each night. Needs focus keeps a habit in the daily draw for a week.
         Pause skips today only. Retire moves it to the retired list below.
       </p>
+      <Link href="/app/review" className="card block" style={{ textDecoration: 'none' }}>
+        <p className="text-sm font-bold">Weekly and monthly review</p>
+        <p className="text-xs mt-1" style={{ color: '#9aa0ae' }}>Sunday weekly review, last-day monthly review, supplements, and preventive items. A separate module.</p>
+      </Link>
 
       {loading && <p className="text-sm" style={{ color: '#9aa0ae' }}>Loading...</p>}
 
@@ -633,18 +694,31 @@ export default function ProtocolPage() {
         {showLibrary ? 'Hide full library' : 'Show full library · add a habit'}
       </button>
 
-      {!loading && PILLARS.map(({ key, label }) => {
-        const { cards, pool } = dailyForPillar(key)
+      {!loading && PILLARS.map(({ key, label, draw, fundamental }) => {
+        const { cards, pool } = dailyForPillar(key, draw)
         return (
-          <section key={key} className="space-y-3">
-            <h2 className="text-base font-bold">{label}</h2>
-            {pool.length === 0 && (
+          <section key={key} className="space-y-3" style={fundamental ? { border: '1px solid #e0607e', borderRadius: '1rem', padding: '0.75rem' } : undefined}>
+            <h2 className="text-base font-bold">
+              {label}
+              {fundamental && (
+                <span className="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style={{ background: '#3a2a2e', color: '#f0a0b0' }}>
+                  Fundamental
+                </span>
+              )}
+            </h2>
+            {fundamental && (
+              <p className="text-xs" style={{ color: '#9aa0ae' }}>Mind comes first. It holds the plan, the commitment, and the lapse re-entry rule.</p>
+            )}
+            {draw === 0 && (
+              <p className="text-sm" style={{ color: '#9aa0ae' }}>No daily draw here. Supplements are checked in the weekly and monthly review.</p>
+            )}
+            {draw > 0 && pool.length === 0 && (
               <p className="text-sm" style={{ color: '#9aa0ae' }}>No habits yet in this pillar.</p>
             )}
-            {pool.length > 0 && cards.length === 0 && (
+            {draw > 0 && pool.length > 0 && cards.length === 0 && (
               <p className="text-sm" style={{ color: '#9aa0ae' }}>All habits in this pillar are paused or retired today.</p>
             )}
-            {pool.length > 0 && (
+            {draw > 0 && pool.length > 0 && (
               <p className="text-xs" style={{ color: '#9aa0ae' }}>{cards.length} of {pool.length} drawn today</p>
             )}
             {cards.map(renderCard)}
